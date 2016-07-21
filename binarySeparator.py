@@ -25,7 +25,7 @@ try:
         #print str(i)
         if i == 0:
             #print str(npage)
-            fw = open("page-" + str(npage), "w")
+            fw = open("page-%02d" %(npage), "w")
             npage += 1
             emptyByte = 0
 
