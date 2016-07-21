@@ -45,5 +45,5 @@ try:
 finally: 
     f.close()
 
-print "Empty Pages: " + str(emptyPages)
+print "Total Pages: " + str(npage) + "Empty Pages: " + str(emptyPages)
 
