@@ -27,7 +27,7 @@ try:
         #print str(i)
         if i == 0:
             #print str(npage)
-            fw = open("page-%02d" %(npage), "w")
+            fw = open("page-%06d" %(npage), "w")
             npage += 1
             emptyByte = 0
 
@@ -40,7 +40,7 @@ try:
             i = -1
             fw.close()
             if emptyByte == 4096:
-                os.system("mv page-" + str(npage-1) + " page-" + str(npage-1) + "_empty")
+                os.system("mv page-%06d" %(npage-1) + " page-%06d" %(npage-1) + "_empty")
                 emptyPages +=1
 
         byte = f.read(1)
