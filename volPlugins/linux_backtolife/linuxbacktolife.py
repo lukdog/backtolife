@@ -6,6 +6,7 @@ import volatility.plugins.linux.proc_maps as linux_proc_maps
 import volatility.plugins.linux.dump_map as linux_dump_map
 from volatility.renderers import TreeGrid
 from volatility.renderers.basic import Address
+import struct
 import os
 import json
 class linux_backtolife(linux_proc_maps.linux_proc_maps):
@@ -23,7 +24,6 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             page = proc_as.zread(start, pagesize)
             yield page
             start = start + pagesize
-
 
     def render_text(self, outfd, data):
         if not self._config.PID:
@@ -44,6 +44,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
 
         outfile = open(file_path, "wb")
         for task, vma in data:
+            savedTask = task
             (fname, major, minor, ino, pgoff) = vma.info(task)
             if str(vma.vm_flags) != "---" and fname != "[vdso]" and ".cache" not in fname:
                 npage = 0
@@ -54,6 +55,12 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                     jsonData["entries"].append({"vaddr":"{0:#x}".format(vma.vm_start), "nr_pages":npage})
                 self.table_row(outfd,vma.vm_start, vma.vm_end, npage, fname)
         outfile.close()
+
+        mm = savedTask.mm
+        print("Heap  Start: {0} End: {1}".format(hex(mm.start_brk), hex(mm.brk)))
+        print("Args  Start: {0} End: {1}".format(hex(mm.arg_start), hex(mm.arg_end)))
+        print("Env   Start: {0:#x} End: {1:#x}".format((mm.env_start), (mm.env_end)))
+        print("Stack Start: {0:#x}".format(mm.start_stack))
 
         if buildJson:
             jsonFile.write(json.dumps(jsonData, indent=4))
