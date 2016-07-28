@@ -10,7 +10,6 @@ print "path: " +PATH
 
 inputFile = open(PATH+ "/procfiles.json","r")
 str_json = inputFile.read()
-print str_json
 data = json.loads(str_json)
 
 dataJson = { "magic":"REG_FILES" }
