@@ -17,8 +17,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
     def __init__(self, config, *args, **kwargs):
         linux_proc_maps.linux_proc_maps.__init__(self, config, *args, **kwargs)
         self._config.add_option('DUMP-DIR', short_option = 'D', default = "./", help = 'Output directory', action = 'store', type = 'str')
-        #self._config.add_option('BUILD_JSON', short_option = 'j', default = None, help = 'Output json file with memory map', action = 'store', type = 'str') 
-    
+        
     def read_addr_range(self, task, start, end):
         pagesize = 4096 
         proc_as = task.get_process_address_space()
@@ -85,17 +84,24 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
 
         return flags
     
-    def getShmid(self, progname, current_name, dic):
+    def getShmid(self, progname, current_name, dic, task):
         if current_name == "" or "[" in current_name:
             return 0
 
         if current_name == progname:
-            return 2
+            maxFd = 0
+            for filp, fd in task.lsof(): 
+                #self.table_row(outfd, Address(task.obj_offset), str(task.comm), task.pid, fd, linux_common.get_path(task, filp))
+                if fd > maxFd:
+                    maxFd = fd
+            
+            dic[progname] = maxFd
+            return maxFd
 
         if current_name in dic:
             return dic[current_name]
         else:
-            dic[current_name] = len(dic) + 3
+            dic[current_name] = len(dic) + dic[progname]
             return dic[current_name]
 
     def render_text(self, outfd, data):
@@ -108,6 +114,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         
         progName = ""
         shmidDic = {}
+        procFiles = {}
         
         print "Creating pages file of PID: " + self._config.PID
         buildJson = True
@@ -131,6 +138,9 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                             "vmas":[],
                                             "dumpable":1
                                             }]}
+                                            
+        regfilesFile = open("procfiles.json".format(self._config.PID), "w")
+        regfilesData = {"entries":[]}
 
 
         self.table_header(outfd, [("Start", "#018x"), ("End",   "#018x"), ("Number of Pages", "6"), ("File Path", "")])
@@ -144,7 +154,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             vmasData = {"start":"{0:#x}".format(vma.vm_start),
                         "end":"{0:#x}".format(vma.vm_end),
                         "pgoff":pgoff,
-                        "shmid":self.getShmid(progName, fname, shmidDic),
+                        "shmid":self.getShmid(progName, fname, shmidDic, savedTask),
                         "prot":"{0}".format(self.protText(str(vma.vm_flags))),
                         "flags":"{0}".format(self.flagsText(fname)),
                         "status":"{0}".format(self.statusText(fname)),
@@ -152,27 +162,36 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                         "fdflags":"0x0"
                         }
                         
+            #If VDSO number of pages of predecessor node have to be incremented      
             if fname == "[vdso]":
                 mmData["entries"][0]["vmas"][len(mmData["entries"][0]["vmas"])-1]["status"] += " | VMA_AREA_VVAR"
                 pagemapData["entries"][len(pagemapData["entries"])-1]["nr_pages"] += 2
                 
             mmData["entries"][0]["vmas"].append(vmasData)
 
-            if str(vma.vm_flags) != "---" and fname != "[vdso]" and ".cache" not in fname:
+            #if Inode != 0, it's a file which have to be linked
+            if ino != 0 and fname not in procFiles:
+                procFiles[fname] = True
+                idF = vmasData["shmid"]
+                typeF = "local"
+                if fname == progName:
+                    #ELF is extracted
+                    typeF = "local" ##TODO
+                
+                fileE = {"name":fname, "id": idF, "type":typeF}
+                regfilesData["entries"].append(fileE)
+
+            #Shared Lib in exec mode not have to be dumped
+            exLib = ".so" in fname and "x" in str(vma.vm_flags)
+
+            #DUMP only what CRIU needs
+            if str(vma.vm_flags) != "---" and fname != "[vdso]" and ".cache" not in fname and not exLib and "/lib/locale/" not in fname:
                 npage = 0
                 for page in self.read_addr_range(task, vma.vm_start, vma.vm_end):
                     outfile.write(page)
                     npage +=1
                 pagemapData["entries"].append({"vaddr":"{0:#x}".format(vma.vm_start), "nr_pages":npage})
                 self.table_row(outfd,vma.vm_start, vma.vm_end, npage, fname)
-                
-        
-        #Generate VDSO 
-#        for ln in open('/proc/self/maps'):
-#            if "[vdso]" in ln:
-#                start, end = [int(x,16) for x in ln.split()[0].split('-')]
-#                CDLL("libc.so.6").write(outfile.fileno(), c_void_p(start), end-start)
-#                break
                 
         outfile.close()
 
@@ -189,6 +208,17 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         mmData["entries"][0]["mm_arg_end"] = "{0:#x}".format(mm.arg_end)
         mmData["entries"][0]["mm_env_start"] = "{0:#x}".format(mm.env_start)
         mmData["entries"][0]["mm_env_end"] = "{0:#x}".format(mm.env_end)
+        mmData["entries"][0]["exe_file_id"] = shmidDic[progName]
+        
+        #Files used by process: TYPE = EXTRACTED
+        for filp, fd in task.lsof():
+            if fd > 2:
+                fname = linux_common.get_path(task, filp)
+                typeF = "local" ##TODO
+                idF = fd -1
+                fileE = {"name":fname, "id": idF, "type":typeF}
+                regfilesData["entries"].append(fileE)
+                 
 
         print("Heap  Start: {0} End: {1}".format(hex(mm.start_brk), hex(mm.brk)))
         print("Args  Start: {0} End: {1}".format(hex(mm.arg_start), hex(mm.arg_end)))
@@ -200,3 +230,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
 
         mmFile.write(json.dumps(mmData, indent=4, sort_keys=False))
         mmFile.close()
+        
+        regfilesFile.write(json.dumps(regfilesData, indent=4, sort_keys=False))
+        regfilesFile.close()
+
