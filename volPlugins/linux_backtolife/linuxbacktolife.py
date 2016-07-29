@@ -3,7 +3,9 @@ import volatility.obj as obj
 import volatility.debug as debug
 import volatility.plugins.linux.common as linux_common
 import volatility.plugins.linux.proc_maps as linux_proc_maps
+import volatility.plugins.linux.find_file as linux_find_file
 import volatility.plugins.linux.dump_map as linux_dump_map
+import volatility.plugins.linux_elf_dump.elfdump as linux_elf_dump
 from volatility.renderers import TreeGrid
 from volatility.renderers.basic import Address
 import struct
@@ -12,11 +14,29 @@ import json
 from ctypes import *
 
 class linux_backtolife(linux_proc_maps.linux_proc_maps):
-    """Generate pages file for CRIU"""
+    """Generate images file for CRIU"""
 
     def __init__(self, config, *args, **kwargs):
         linux_proc_maps.linux_proc_maps.__init__(self, config, *args, **kwargs)
         self._config.add_option('DUMP-DIR', short_option = 'D', default = "./", help = 'Output directory', action = 'store', type = 'str')
+    
+    def dumpFile(self, listF):
+        listInode = []
+        toFind = len(listF)
+        print "ToFind: " + str(toFind)
+        for (_, _, file_path, file_dentry)in linux_find_file.linux_find_file(self._config).walk_sbs():
+            if file_path in listF:
+                listInode.append(file_dentry.d_inode)
+                toFind -= 1
+                if toFind == 0:
+                    break
+        
+        for a in listInode:
+            print "{0:#x}".format(a)
+    
+    def dumpElf(self, outfd):
+        data = linux_elf_dump.linux_elf_dump(self._config).calculate()
+        data = linux_elf_dump.linux_elf_dump(self._config).render_text(outfd, data)
         
     def read_addr_range(self, task, start, end):
         pagesize = 4096 
@@ -25,6 +45,28 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             page = proc_as.zread(start, pagesize)
             yield page
             start = start + pagesize
+
+    #Build pstree file for CRIU
+    def buildPsTree(self, task):
+        pstreeData = {"magic":"PSTREE", "entries":[{
+                                                    "pid":int(str(task.pid)),
+                                                    "ppid":0,
+                                                    "pgid":int(str(task.pid)),
+                                                    "sid":0
+                                                    }]}
+        threads = []
+        for thread in task.threads():
+            threads.append(int(str(thread.pid)))
+            
+            
+        print type(threads[0])
+        
+        pstreeData["entries"][0]["threads"] = threads
+        
+        pstreeFile = open("pstree.json", "w")
+        pstreeFile.write(json.dumps(pstreeData, indent=4))
+        pstreeFile.close()
+
 
     def protText(self, flag):
         prot = ""
@@ -104,6 +146,8 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             dic[current_name] = len(dic) + dic[progname]
             return dic[current_name]
 
+
+
     def render_text(self, outfd, data):
         if not self._config.PID:
             debug.error("You have to specify a process to dump. Use the option -p.\n")
@@ -115,6 +159,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         progName = ""
         shmidDic = {}
         procFiles = {}
+        procFilesExtr = []
         
         print "Creating pages file of PID: " + self._config.PID
         buildJson = True
@@ -140,7 +185,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                             }]}
                                             
         regfilesFile = open("procfiles.json".format(self._config.PID), "w")
-        regfilesData = {"entries":[]}
+        regfilesData = {"entries":[], "pid":self._config.PID}
 
 
         self.table_header(outfd, [("Start", "#018x"), ("End",   "#018x"), ("Number of Pages", "6"), ("File Path", "")])
@@ -174,11 +219,15 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 procFiles[fname] = True
                 idF = vmasData["shmid"]
                 typeF = "local"
+                nameF = fname
                 if fname == progName:
                     #ELF is extracted
-                    typeF = "local" ##TODO
+                    typeF = "elf"
+                    nameF = task.comm + ".dump"
+                    
+                    
                 
-                fileE = {"name":fname, "id": idF, "type":typeF}
+                fileE = {"name":nameF, "id": idF, "type":typeF}
                 regfilesData["entries"].append(fileE)
 
             #Shared Lib in exec mode not have to be dumped
@@ -196,7 +245,8 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         outfile.close()
 
         mm = savedTask.mm
-
+        
+        #set Limit addresses for MM file
         mmData["entries"][0]["mm_start_code"] = "{0:#x}".format(mm.start_code)
         mmData["entries"][0]["mm_end_code"] = "{0:#x}".format(mm.end_code)
         mmData["entries"][0]["mm_start_data"] = "{0:#x}".format(mm.start_data)
@@ -214,17 +264,16 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         for filp, fd in task.lsof():
             if fd > 2:
                 fname = linux_common.get_path(task, filp)
+                
+                if "/" not in fname:
+                    continue
+                    
                 typeF = "local" ##TODO
                 idF = fd -1
                 fileE = {"name":fname, "id": idF, "type":typeF}
                 regfilesData["entries"].append(fileE)
+                procFilesExtr.append(fname)
                  
-
-        print("Heap  Start: {0} End: {1}".format(hex(mm.start_brk), hex(mm.brk)))
-        print("Args  Start: {0} End: {1}".format(hex(mm.arg_start), hex(mm.arg_end)))
-        print("Env   Start: {0:#x} End: {1:#x}".format((mm.env_start), (mm.env_end)))
-        print("Stack Start: {0:#x}".format(mm.start_stack))
-
         pagemap.write(json.dumps(pagemapData, indent=4, sort_keys=False))
         pagemap.close()
 
@@ -233,4 +282,10 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         
         regfilesFile.write(json.dumps(regfilesData, indent=4, sort_keys=False))
         regfilesFile.close()
+        
+        print "Extracting Files: "
+        print procFilesExtr 
+        #self.dumpFile(procFilesExtr)
+        self.buildPsTree(savedTask)
+        self.dumpElf(outfd)
 
