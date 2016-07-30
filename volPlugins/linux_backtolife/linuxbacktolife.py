@@ -1,4 +1,3 @@
-
 import volatility.obj as obj
 import volatility.debug as debug
 import volatility.plugins.linux.common as linux_common
@@ -13,6 +12,9 @@ import os
 import json
 from ctypes import *
 
+
+
+#Plugin which generates different files in order to restore a process using CRIU
 class linux_backtolife(linux_proc_maps.linux_proc_maps):
     """Generate images file for CRIU"""
 
@@ -20,6 +22,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         linux_proc_maps.linux_proc_maps.__init__(self, config, *args, **kwargs)
         self._config.add_option('DUMP-DIR', short_option = 'D', default = "./", help = 'Output directory', action = 'store', type = 'str')
     
+    #Method for dumping a file to local disc extracting it from a memory dump
     def dumpFile(self, listF):
         listInode = []
         toFind = len(listF)
@@ -34,10 +37,12 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         for a in listInode:
             print "{0:#x}".format(a)
     
+    #Method for dumping elf file relative to the process
     def dumpElf(self, outfd):
         data = linux_elf_dump.linux_elf_dump(self._config).calculate()
         data = linux_elf_dump.linux_elf_dump(self._config).render_text(outfd, data)
-        
+    
+    #Method for reading an address range in memory dump
     def read_addr_range(self, task, start, end):
         pagesize = 4096 
         proc_as = task.get_process_address_space()
@@ -46,7 +51,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             yield page
             start = start + pagesize
 
-    #Build pstree file for CRIU
+    #Build pstree file for CRIU with info about process and his threads
     def buildPsTree(self, task):
         pstreeData = {"magic":"PSTREE", "entries":[{
                                                     "pid":int(str(task.pid)),
@@ -67,7 +72,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         pstreeFile.write(json.dumps(pstreeData, indent=4))
         pstreeFile.close()
 
-
+    #Generate string of PROT field starting from permission flags of a segment for MM file
     def protText(self, flag):
         prot = ""
         r = False
@@ -88,23 +93,29 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
 
         return prot
 
+    #Method for generating flags string for MM file
     def flagsText(self, name):
         flags = ""
         
+        #Cache is SHARED
         if ".cache" in name:
             flags += "MAP_SHARED"
             return flags
         
+        #Other Segment are PRIVATE
         flags += "MAP_PRIVATE"
         
+        #If Segment is not relative to any file it's ANON
         if name == "" or "[" in name:
             flags += " | MAP_ANON"
-            
+        
+        #STACK is always GROWSDOWN
         if name == "[stack]":
             flags += " | MAP_GROWSDOWN"
 
         return flags
         
+    #Method that can generate status String for MM file
     def statusText(self, name):
         flags = "VMA_AREA_REGULAR"
         
@@ -126,6 +137,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
 
         return flags
     
+    #Method for generating shmid, it takes max fd id assign it to program, and assign ids to other files
     def getShmid(self, progname, current_name, dic, task):
         if current_name == "" or "[" in current_name:
             return 0
@@ -147,7 +159,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             return dic[current_name]
 
 
-
+    #Method that perform all the operations
     def render_text(self, outfd, data):
         if not self._config.PID:
             debug.error("You have to specify a process to dump. Use the option -p.\n")
@@ -158,8 +170,8 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         
         progName = ""
         shmidDic = {}
-        procFiles = {}
-        procFilesExtr = []
+        procFiles = {} #Files used in process
+        procFilesExtr = [] #Files that have to be extracted
         
         print "Creating pages file of PID: " + self._config.PID
         buildJson = True
