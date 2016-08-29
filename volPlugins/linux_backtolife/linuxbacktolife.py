@@ -5,6 +5,7 @@ import volatility.plugins.linux.proc_maps as linux_proc_maps
 import volatility.plugins.linux.find_file as linux_find_file
 import volatility.plugins.linux.dump_map as linux_dump_map
 import volatility.plugins.linux_elf_dump.elfdump as linux_elf_dump
+import volatility.plugins.linux.info_regs as linux_info_regs
 from volatility.renderers import TreeGrid
 from volatility.renderers.basic import Address
 import struct
@@ -42,6 +43,62 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         data = linux_elf_dump.linux_elf_dump(self._config).calculate()
         data = linux_elf_dump.linux_elf_dump(self._config).render_text(outfd, data)
     
+    #Method for extracting registers values
+    def readRegs(self, task):
+        info_regs = linux_info_regs.linux_info_regs(self._config).calculate()
+        
+        extra_regs = {}
+        for thread in task.threads():
+            name = thread.comm
+            json = {"fs_base": "{0:#x}".format(thread.fs),
+                    #"gs_base": "{0:#x}".format(thread.gs),
+                    "fs": "{0:#x}".format(thread.fsindex),
+                    "gs": "{0:#x}".format(thread.gsindex),
+                    "es": "{0:#x}".format(thread.es),
+                    "ds": "{0:#x}".format(thread.ds)}
+            extra_regs[name] = json
+        
+        #Works only with 64bit registers
+        for task, name, thread_regs in info_regs:
+            for thread_name, regs in thread_regs:
+                if regs != None:
+                    fCore = open("core-{0}.json".format(int(str(thread.pid))), "w")
+                    fCoreData = {"gpregs": {
+                                    "r15": "{0:#x}".format(regs["r15"]),
+                                    "r14": "{0:#x}".format(regs["r14"]),
+                                    "r13": "{0:#x}".format(regs["r13"]),
+                                    "r12": "{0:#x}".format(regs["r12"]),
+                                    "bp": "{0:#x}".format(regs["rbp"]),
+                                    "bx": "{0:#x}".format(regs["rbx"]),
+                                    "r11": "{0:#x}".format(regs["r11"]),
+                                    "r10": "{0:#x}".format(regs["r10"]),
+                                    "r9": "{0:#x}".format(regs["r9"]),
+                                    "r8": "{0:#x}".format(regs["r8"]),
+                                    "ax": "{0:#x}".format(regs["rax"]),
+                                    "cx": "{0:#x}".format(regs["rcx"]),
+                                    "dx": "{0:#x}".format(regs["rdx"]),
+                                    "si": "{0:#x}".format(regs["rsi"]),
+                                    "di": "{0:#x}".format(regs["rdi"]),
+                                    "orig_ax": "{0:#x}".format(regs["unknown"]),
+                                    "ip": "{0:#x}".format(regs["rip"]),
+                                    "cs": "{0:#x}".format(regs["cs"]),
+                                    "flags": "{0:#x}".format(regs["eflags"]),
+                                    "sp": "{0:#x}".format(regs["rsp"]),
+                                    "ss": "{0:#x}".format(regs["ss"]),
+                                    "fs_base": extra_regs[thread_name]["fs_base"],
+                                    "gs_base": extra_regs[thread_name]["gs_base"],
+                                    "ds": extra_regs[thread_name]["ds"],
+                                    "es": extra_regs[thread_name]["es"],
+                                    "fs": extra_regs[thread_name]["fs"],
+                                    "gs": extra_regs[thread_name]["gs"]
+                        }
+                    }
+                    
+                    fCore.write(json.dumps(fCoreData, indent=4, sort_keys=False))
+                    fCore.close()
+               
+               
+               
     #Method for reading an address range in memory dump dividing in pages
     def read_addr_range_page(self, task, start, end):
         pagesize = 4096 
@@ -264,8 +321,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                             
         regfilesFile = open("procfiles.json".format(self._config.PID), "w")
         regfilesData = {"entries":[], "pid":self._config.PID}
-
-	sigactsFile = open("sigacts-{0}.json".format(self._config.PID), "w")
+        sigactsFile = open("sigacts-{0}.json".format(self._config.PID), "w")
 
         self.table_header(outfd, [("Start", "#018x"), ("End",   "#018x"), ("Number of Pages", "6"), ("File Path", "")])
         outfile = open(file_path, "wb")
@@ -367,7 +423,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         #self.dumpFile(procFilesExtr)
         self.buildPsTree(savedTask)
         self.dumpElf(outfd)
-        
+        self.readRegs(savedTask)
         sigactsData = self.read_sigactions(task)
         sigactsFile.write(json.dumps(sigactsData, indent=4, sort_keys=False))
         sigactsFile.close()
