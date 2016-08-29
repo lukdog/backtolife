@@ -42,14 +42,80 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         data = linux_elf_dump.linux_elf_dump(self._config).calculate()
         data = linux_elf_dump.linux_elf_dump(self._config).render_text(outfd, data)
     
-    #Method for reading an address range in memory dump
-    def read_addr_range(self, task, start, end):
+    #Method for reading an address range in memory dump dividing in pages
+    def read_addr_range_page(self, task, start, end):
         pagesize = 4096 
         proc_as = task.get_process_address_space()
         while start < end:
             page = proc_as.zread(start, pagesize)
             yield page
             start = start + pagesize
+
+    #Method for reading an address range in memory dump
+    def read_addr_range(self, task, start, size):
+        proc_as = task.get_process_address_space()
+        segment = proc_as.zread(start, size)
+        return segment
+    
+    #Method for generating sigactions
+    def read_sigactions(self, task):
+    
+        sigacts = {"magic":"SIGACT", "entries":[]}
+        
+        handler = task.sighand
+        action_vector = handler+8
+        
+        for i in range(1, 65):
+            if i == 9 or i == 19:
+                action_vector+=32
+                continue
+        
+            reverse = []
+            #sigaction
+            sigaction = self.read_addr_range(task, action_vector, 8)
+            for c in sigaction:
+                reverse.insert(0, "{0:02x}".format(ord(c)))
+                
+            reverse.insert(0, "0x")
+            action = ''.join(reverse)
+            
+            reverse = []
+            action_vector+=8
+            #flags
+            sigaction = self.read_addr_range(task, action_vector, 4)
+            for c in sigaction:
+                reverse.insert(0, "{0:02x}".format(ord(c)))
+                
+            reverse.insert(0, "0x")
+            flags = ''.join(reverse)
+            
+            reverse = []
+            #Sarebbero 4 di flags ma ci sono altri 4 a 0
+            action_vector+=8
+            #restorer
+            sigaction = self.read_addr_range(task, action_vector, 8)
+            for c in sigaction:
+                reverse.insert(0, "{0:02x}".format(ord(c)))
+                
+            reverse.insert(0, "0x")
+            restorer = ''.join(reverse)
+            
+            reverse = []
+            action_vector += 8
+            #mask
+            sigaction = self.read_addr_range(task, action_vector, 8)
+            for c in sigaction:
+                reverse.insert(0, "{0:02x}".format(ord(c)))
+                
+            reverse.insert(0, "0x")
+            mask = ''.join(reverse)
+            
+            action_element = {"sigaction":action, "flags":flags, "restorer":restorer, "mask":mask}
+            sigacts["entries"].append(action_element)
+            
+            action_vector += 8
+        
+        return sigacts
 
     #Build pstree file for CRIU with info about process and his threads
     def buildPsTree(self, task):
@@ -199,6 +265,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         regfilesFile = open("procfiles.json".format(self._config.PID), "w")
         regfilesData = {"entries":[], "pid":self._config.PID}
 
+	sigactsFile = open("sigacts-{0}.json".format(self._config.PID), "w")
 
         self.table_header(outfd, [("Start", "#018x"), ("End",   "#018x"), ("Number of Pages", "6"), ("File Path", "")])
         outfile = open(file_path, "wb")
@@ -248,7 +315,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             #DUMP only what CRIU needs
             if str(vma.vm_flags) != "---" and fname != "[vdso]" and ".cache" not in fname and not exLib and "/lib/locale/" not in fname:
                 npage = 0
-                for page in self.read_addr_range(task, vma.vm_start, vma.vm_end):
+                for page in self.read_addr_range_page(task, vma.vm_start, vma.vm_end):
                     outfile.write(page)
                     npage +=1
                 pagemapData["entries"].append({"vaddr":"{0:#x}".format(vma.vm_start), "nr_pages":npage})
@@ -300,4 +367,8 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         #self.dumpFile(procFilesExtr)
         self.buildPsTree(savedTask)
         self.dumpElf(outfd)
+        
+        sigactsData = self.read_sigactions(task)
+        sigactsFile.write(json.dumps(sigactsData, indent=4, sort_keys=False))
+        sigactsFile.close()
 
