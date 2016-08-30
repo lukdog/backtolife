@@ -13,8 +13,6 @@ import os
 import json
 from ctypes import *
 
-
-
 #Plugin which generates different files in order to restore a process using CRIU
 class linux_backtolife(linux_proc_maps.linux_proc_maps):
     """Generate images file for CRIU"""
@@ -48,22 +46,85 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         info_regs = linux_info_regs.linux_info_regs(self._config).calculate()
         
         extra_regs = {}
+        float_regs = {}
         for thread in task.threads():
             name = thread.comm
-            json = {"fs_base": "{0:#x}".format(thread.fs),
-                    #"gs_base": "{0:#x}".format(thread.gs),
-                    "fs": "{0:#x}".format(thread.fsindex),
-                    "gs": "{0:#x}".format(thread.gsindex),
-                    "es": "{0:#x}".format(thread.es),
-                    "ds": "{0:#x}".format(thread.ds)}
-            extra_regs[name] = json
+            jRegs = {"fs_base": "{0:#x}".format(thread.thread.fs),
+                    "gs_base": "{0:#x}".format(thread.thread.gs),
+                    "fs": "{0:#x}".format(thread.thread.fsindex),
+                    "gs": "{0:#x}".format(thread.thread.gsindex),
+                    "es": "{0:#x}".format(thread.thread.es),
+                    "ds": "{0:#x}".format(thread.thread.ds)}
+            extra_regs[name] = jRegs
+            
+            #Reading st_space from memory Byte by Byte
+            addr = int(thread.thread.fpu.state.fxsave.__str__())+32
+            st_space_vect = []
+            for i in range(0, 32):
+            	reverse = []
+            	dataByte = self.read_addr_range(task, addr, 4)
+            	for c in dataByte:
+                	reverse.insert(0, "{0:02x}".format(ord(c)))
+            	
+            	reverse.insert(0, "0x")
+            	value = ''.join(reverse)
+            	st_space_vect.append(int(value, 16))
+            	addr += 4
+            
+            #Reading xmm_space from memory Byte by Byte
+            addr = int(thread.thread.fpu.state.fxsave.__str__()) + 160
+            xmm_space_vect = []
+            for i in range(0, 64):
+            	reverse = []
+            	dataByte = self.read_addr_range(task, addr, 4)
+            	for c in dataByte:
+                	reverse.insert(0, "{0:02x}".format(ord(c)))
+            	
+            	reverse.insert(0, "0x")
+            	value = ''.join(reverse)
+            	xmm_space_vect.append(int(value, 16))
+            	addr += 4
+            
+            
+            #Reading ymmh_space from memory Byte by Byte
+            addr = int(thread.thread.fpu.state.xsave.ymmh.__str__())
+            ymmh_space_vect = []
+            for i in range(0, 64):
+            	reverse = []
+            	dataByte = self.read_addr_range(task, addr, 4)
+            	for c in dataByte:
+                	reverse.insert(0, "{0:02x}".format(ord(c)))
+            	
+            	reverse.insert(0, "0x")
+            	value = ''.join(reverse)
+            	ymmh_space_vect.append(int(value, 16))
+            	addr += 4
+            
+            
+            fpregsData = {"fpregs":{"cwd":int(thread.thread.fpu.state.fxsave.cwd),
+            						"swd":int(thread.thread.fpu.state.fxsave.swd),
+            						"twd":int(thread.thread.fpu.state.fxsave.twd),
+            						"fop":int(thread.thread.fpu.state.fxsave.fop),
+            						"rip":int(thread.thread.fpu.state.fxsave.rip),
+            						"rdp":int(thread.thread.fpu.state.fxsave.rdp),
+            						"mxcsr":int(thread.thread.fpu.state.fxsave.mxcsr),
+            						"mxcsr_mask":int(thread.thread.fpu.state.fxsave.mxcsr_mask),
+            						"st_space":st_space_vect, #Bytes from memory
+            						"xmm_space":xmm_space_vect, #Bytes from memory
+            						"xsave":{
+            								"xstate_bv":int(thread.thread.fpu.state.xsave.xsave_hdr.xstate_bv),
+            								"ymmh_space":ymmh_space_vect #Bytes from memory
+            								}
+                    				}
+                    	}
+            float_regs[name] = fpregsData
         
         #Works only with 64bit registers
         for task, name, thread_regs in info_regs:
             for thread_name, regs in thread_regs:
                 if regs != None:
                     fCore = open("core-{0}.json".format(int(str(thread.pid))), "w")
-                    fCoreData = {"gpregs": {
+                    regsData = {"gpregs": {
                                     "r15": "{0:#x}".format(regs["r15"]),
                                     "r14": "{0:#x}".format(regs["r14"]),
                                     "r13": "{0:#x}".format(regs["r13"]),
@@ -91,9 +152,60 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                     "es": extra_regs[thread_name]["es"],
                                     "fs": extra_regs[thread_name]["fs"],
                                     "gs": extra_regs[thread_name]["gs"]
-                        }
+                        		},
+                        		"fpregs": float_regs[thread_name]["fpregs"],
+                        		"clear_tid_addr": "0x0"
                     }
                     
+                    
+                    tcData = {
+                    			"task_state": int(task.state),
+                    			"exit_code": int(task.exit_code),
+                    			"personality": int(task.personality),
+                    			"flags": int(task.flags), #It's different
+                    			"blk_sigset": "0x0", #Temporary
+                    			"comm": task.comm.__str__(),
+                    			"timers": {
+                    						"real":{
+                    								"isec":0,
+                    								"iusec":0,
+                    								"vsec":0,
+                    								"vusec":0
+                    								},
+                    						"virt":{
+                    								"isec":0,
+                    								"iusec":0,
+                    								"vsec":0,
+                    								"vusec":0
+                    								},
+                    						"prof":{
+                    								"isec":0,
+                    								"iusec":0,
+                    								"vsec":0,
+                    								"vusec":0
+                    								}
+                    						},
+                    			"rlimits": {}, #Local
+                    			"cg_set": 1, #Temporary
+                    			"signal_s":{}, #Empty for Nano
+                    			"loginuid": int(task.loginuid.val),
+                    			"oom_score_adj": int(task.signal.oom_score_adj)
+                    			} 
+                    
+                    fCoreData = {
+								"magic": "CORE",
+								"entries":[
+											{
+												"mtype": "X86_64",
+												"thread_info":regsData,
+												"tc": tcData,
+												"thread_core": "ciao"
+											}
+										]
+								}
+
+
+
                     fCore.write(json.dumps(fCoreData, indent=4, sort_keys=False))
                     fCore.close()
                
