@@ -26,6 +26,9 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         listInode = []
         toFind = len(listF)
         print "ToFind: " + str(toFind)
+        if toFind == 0:
+        	return
+        	
         for (_, _, file_path, file_dentry)in linux_find_file.linux_find_file(self._config).walk_sbs():
             if file_path in listF:
                 listInode.append(file_dentry.d_inode)
@@ -47,6 +50,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         
         extra_regs = {}
         float_regs = {}
+        thread_core = {}
         pids = {}
         for thread in task.threads():
             name = thread.comm
@@ -101,8 +105,84 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             	value = ''.join(reverse)
             	ymmh_space_vect.append(int(value, 16))
             	addr += 4
-            
-            
+            	
+            #Reading Thread_core structures
+            threadCoreData = {
+            					"futex_rla": 0,
+            					"futex_rla_len": 0,
+            					"sched_nice":0,
+            					"sched_policy":0,
+            					"sas":{"ss_sp":int(thread.sas_ss_sp), "ss_size":int(thread.sas_ss_size), "ss_flags":2}, #flags not found in vol
+            					"signal_p":{},
+            					"creds":{
+            								"uid":int(thread.cred.uid.val),
+            								"gid":int(thread.cred.gid.val),
+            								"euid":int(thread.cred.euid.val),
+            								"egid":int(thread.cred.egid.val),
+            								"suid":int(thread.cred.suid.val),
+            								"sgid":int(thread.cred.sgid.val),
+            								"fsuid":int(thread.cred.fsuid.val),
+            								"fsgid":int(thread.cred.fsgid.val),
+            								"cap_inh":[],
+            								"cap_prm":[],
+            								"cap_eff":[],
+            								"cap_bnd":[],
+            								"secbits":int(thread.cred.securebits),
+            								"groups":[0]
+            							}
+            					}
+
+			#Reading Caps
+            addr = int(thread.cred.cap_inheritable.__str__())
+            for i in range(0,2):
+            	reverse = []
+            	dataByte = self.read_addr_range(task, addr, 4)
+            	for c in dataByte:
+            		reverse.insert(0, "{0:02x}".format(ord(c)))
+		        	
+            	reverse.insert(0, "0x")
+            	value = ''.join(reverse)
+            	threadCoreData["creds"]["cap_inh"].append(int(value, 16))
+            	addr+=4
+				
+            addr = int(thread.cred.cap_permitted.__str__())
+            for i in range(0,2):
+            	reverse = []
+            	dataByte = self.read_addr_range(task, addr, 4)
+            	for c in dataByte:
+            		reverse.insert(0, "{0:02x}".format(ord(c)))
+		        	
+            	reverse.insert(0, "0x")
+            	value = ''.join(reverse)
+            	threadCoreData["creds"]["cap_prm"].append(int(value, 16))
+            	addr+=4
+				
+            addr = int(thread.cred.cap_effective.__str__())
+            for i in range(0,2):
+            	reverse = []
+            	dataByte = self.read_addr_range(task, addr, 4)
+            	for c in dataByte:
+            		reverse.insert(0, "{0:02x}".format(ord(c)))
+		        	
+            	reverse.insert(0, "0x")
+            	value = ''.join(reverse)
+            	threadCoreData["creds"]["cap_eff"].append(int(value, 16))
+            	addr+=4
+
+            addr = int(thread.cred.cap_bset.__str__())
+            for i in range(0,2):
+            	reverse = []
+            	dataByte = self.read_addr_range(task, addr, 4)
+            	for c in dataByte:
+            		reverse.insert(0, "{0:02x}".format(ord(c)))
+		        	
+            	reverse.insert(0, "0x")
+            	value = ''.join(reverse)
+            	threadCoreData["creds"]["cap_bnd"].append(int(value, 16))
+            	addr+=4
+
+            thread_core[name] = threadCoreData
+
             fpregsData = {"fpregs":{"cwd":int(thread.thread.fpu.state.fxsave.cwd),
             						"swd":int(thread.thread.fpu.state.fxsave.swd),
             						"twd":int(thread.thread.fpu.state.fxsave.twd),
@@ -202,7 +282,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
 												"mtype": "X86_64",
 												"thread_info":regsData,
 												"tc": tcData,
-												"thread_core": "ciao"
+												"thread_core": thread_core[thread_name]
 											}
 										]
 								}
@@ -515,7 +595,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 if "/" not in fname:
                     continue
                     
-                typeF = "local" ##TODO
+                typeF = "extracted" ##TODO
                 idF = fd -1
                 fileE = {"name":fname, "id": idF, "type":typeF}
                 regfilesData["entries"].append(fileE)
@@ -531,7 +611,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         regfilesFile.close()
         
         print "Extracting Files: " 
-        #self.dumpFile(procFilesExtr)
+        self.dumpFile(procFilesExtr)
         self.buildPsTree(savedTask)
         
         self.readRegs(savedTask)
