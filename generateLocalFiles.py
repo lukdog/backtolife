@@ -2,6 +2,7 @@
 import  os,sys
 import json
 import termios
+import re
 from stat import *
 
 #generate regFiles ,  FdInfo , fs
@@ -235,6 +236,42 @@ idsJson = {
 idsFile = open("ids-"+PID+".json","w")
 idsFile.write(json.dumps(idsJson,indent=4, sort_keys = False))
 idsFile.close()
+
+#generation rlimits for core-{pid}.json
+limits = os.popen("cat /proc/1/limits").readlines()
+rlimitsJson = {"rlimits":[] }
+for line in limits:
+	if "Units" in line:
+		continue
+	new_line = re.sub(' +',' ',line)
+	fieldslim = new_line.split(" ")
+	if "priority" in new_line:
+		f1 = fieldslim[len(fieldslim)-2]
+		f2 = fieldslim[len(fieldslim)-3]
+	else:
+		f1 = fieldslim[len(fieldslim)-3]
+		f2 = fieldslim[len(fieldslim)-4]
+
+
+	
+	if f1 == "unlimited":
+		f1="18446744073709551615"
+	if f2 == "unlimited":
+		f2="18446744073709551615"
+	rlimitsJson["rlimits"].append({"cur":int(str(f2)),"max":int(str(f1))})
+
+
+# for loop for each thread
+coreFile = open("core-"+PID+".json","r")
+strcore_json = coreFile.read()
+dataCore = json.loads(strcore_json)
+dataCore["entries"][0]["tc"]["rlimits"]=rlimitsJson
+coreFile.close()
+coreFile = open("core-"+PID+".json","w")
+coreFile.write(json.dumps(dataCore,indent=4, sort_keys = False))
+coreFile.close()
+
+
 
 
 
