@@ -47,8 +47,10 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         
         extra_regs = {}
         float_regs = {}
+        pids = {}
         for thread in task.threads():
             name = thread.comm
+            pids[name] = thread.pid
             jRegs = {"fs_base": "{0:#x}".format(thread.thread.fs),
                     "gs_base": "{0:#x}".format(thread.thread.gs),
                     "fs": "{0:#x}".format(thread.thread.fsindex),
@@ -123,7 +125,8 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         for task, name, thread_regs in info_regs:
             for thread_name, regs in thread_regs:
                 if regs != None:
-                    fCore = open("core-{0}.json".format(int(str(thread.pid))), "w")
+                    print "Working on thread: " + str(pids[thread_name])
+                    fCore = open("core-{0}.json".format(int(str(pids[thread_name]))), "w")
                     regsData = {"gpregs": {
                                     "r15": "{0:#x}".format(regs["r15"]),
                                     "r14": "{0:#x}".format(regs["r14"]),
@@ -259,7 +262,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             flags = ''.join(reverse)
             
             reverse = []
-            #Sarebbero 4 di flags ma ci sono altri 4 a 0
+            #Sarebbero 4 di flags ma ci sono altri 4 a 0(?)
             action_vector+=8
             #restorer
             sigaction = self.read_addr_range(task, action_vector, 8)
@@ -297,10 +300,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         threads = []
         for thread in task.threads():
             threads.append(int(str(thread.pid)))
-            
-            
-        print type(threads[0])
-        
+
         pstreeData["entries"][0]["threads"] = threads
         
         pstreeFile = open("pstree.json", "w")
@@ -530,13 +530,13 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         regfilesFile.write(json.dumps(regfilesData, indent=4, sort_keys=False))
         regfilesFile.close()
         
-        print "Extracting Files: "
-        print procFilesExtr 
+        print "Extracting Files: " 
         #self.dumpFile(procFilesExtr)
         self.buildPsTree(savedTask)
-        self.dumpElf(outfd)
+        
         self.readRegs(savedTask)
         sigactsData = self.read_sigactions(task)
         sigactsFile.write(json.dumps(sigactsData, indent=4, sort_keys=False))
         sigactsFile.close()
+        self.dumpElf(outfd)
 
