@@ -1,0 +1,88 @@
+{
+    "magic": "PAGEMAP", 
+    "entries": [
+        {
+            "pages_id": 1
+        }, 
+        {
+            "nr_pages": 46, 
+            "vaddr": "0x400000"
+        }, 
+        {
+            "nr_pages": 1, 
+            "vaddr": "0x62e000"
+        }, 
+        {
+            "nr_pages": 1, 
+            "vaddr": "0x62f000"
+        }, 
+        {
+            "nr_pages": 157, 
+            "vaddr": "0x1e08000"
+        }, 
+        {
+            "nr_pages": 1, 
+            "vaddr": "0x7f90f2a6f000"
+        }, 
+        {
+            "nr_pages": 1, 
+            "vaddr": "0x7f90f2a70000"
+        }, 
+        {
+            "nr_pages": 4, 
+            "vaddr": "0x7f90f2e10000"
+        }, 
+        {
+            "nr_pages": 2, 
+            "vaddr": "0x7f90f2e14000"
+        }, 
+        {
+            "nr_pages": 4, 
+            "vaddr": "0x7f90f2e16000"
+        }, 
+        {
+            "nr_pages": 4, 
+            "vaddr": "0x7f90f303f000"
+        }, 
+        {
+            "nr_pages": 1, 
+            "vaddr": "0x7f90f3043000"
+        }, 
+        {
+            "nr_pages": 1, 
+            "vaddr": "0x7f90f3278000"
+        }, 
+        {
+            "nr_pages": 1, 
+            "vaddr": "0x7f90f3279000"
+        }, 
+        {
+            "nr_pages": 4, 
+            "vaddr": "0x7f90f3473000"
+        }, 
+        {
+            "nr_pages": 2, 
+            "vaddr": "0x7f90f3498000"
+        }, 
+        {
+            "nr_pages": 1, 
+            "vaddr": "0x7f90f349a000"
+        }, 
+        {
+            "nr_pages": 1, 
+            "vaddr": "0x7f90f349b000"
+        }, 
+        {
+            "nr_pages": 1, 
+            "vaddr": "0x7f90f349c000"
+        }, 
+        {
+            "nr_pages": 34, 
+            "vaddr": "0x7ffe77119000"
+        }, 
+        {
+            "nr_pages": 4, 
+            "vaddr": "0x7ffe771c9000"
+        }
+    ]
+}

@@ -1,0 +1,14 @@
+{
+    "magic": "PSTREE", 
+    "entries": [
+        {
+            "pgid": 3600, 
+            "threads": [
+                3600
+            ], 
+            "ppid": 0, 
+            "pid": 3600, 
+            "sid": 0
+        }
+    ]
+}
