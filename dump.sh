@@ -19,8 +19,8 @@ then
 fi
 echo "Dumping RAM memory of $totalSize MB"
 dd if=/dev/fmem of=$directory/$directory.dump bs=1MB count=$totalSize
-mkdir $directory/CRIU
-echo "Dumping process $elf pid $pid"
-criu dump -D $directory/CRIU -t $pid --shell-job
+#mkdir $directory/CRIU
+#echo "Dumping process $elf pid $pid"
+#criu dump -D $directory/CRIU -t $pid --shell-job
 echo "DONE."
 
