@@ -115,7 +115,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                 "sched_nice":0,
                                 "sched_policy":0,
                                 "sas":{"ss_sp":int(thread.sas_ss_sp), "ss_size":int(thread.sas_ss_size), "ss_flags":2}, #flags not found 
-                                "signal_p":{},
+                                "signals_p":{},
                                 "creds":{
                                             "uid":int(thread.cred.uid.val),
                                             "gid":int(thread.cred.gid.val),
@@ -272,7 +272,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                             },
                                 "rlimits": {}, #Local
                                 "cg_set": 1, #Temporary
-                                "signal_s":{}, #Empty for Nano
+                                "signals_s":{}, #Empty for Nano
                                 "loginuid": int(task.loginuid.val),
                                 "oom_score_adj": int(task.signal.oom_score_adj)
                                 } 
@@ -296,6 +296,9 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
 
                     if int(str(task.pid)) != int(str(pids[thread_name])):
                         fCoreData["entries"][0].pop("tc", None)
+                        fCoreData["entries"][0]["thread_core"]["blk_sigset"] = 0
+                        
+
 
                     fCore.write(json.dumps(fCoreData, indent=4, sort_keys=False))
                     fCore.close()
