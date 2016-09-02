@@ -321,13 +321,15 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         return segment
     
     #Method for generating sigactions
-    def read_sigactions(self, task):
+    def read_sigactions(self, task, outfd):
     
         sigacts = {"magic":"SIGACT", "entries":[]}
         
         handler = task.sighand
         action_vector = handler+8
         
+        self.table_header(outfd, [("Signal", "2"), ("Sigaction", "18"), ("Flags",   "10"), ("Restorer", "18"), ("Mask", "18")])
+
         for i in range(1, 65):
             if i == 9 or i == 19:
                 action_vector+=32
@@ -376,6 +378,8 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             action_element = {"sigaction":action, "flags":flags, "restorer":restorer, "mask":mask}
             sigacts["entries"].append(action_element)
             
+            #Print results
+            self.table_row(outfd,i, action, flags, restorer, mask)
             action_vector += 8
         
         return sigacts
@@ -647,7 +651,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         self.readRegs(savedTask)
 
         print "Searching Signal Handler and sigactions"
-        sigactsData = self.read_sigactions(task)
+        sigactsData = self.read_sigactions(task, outfd)
 
         print "Writing Files"
         sigactsFile.write(json.dumps(sigactsData, indent=4, sort_keys=False))
