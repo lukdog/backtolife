@@ -582,9 +582,10 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 
         outfile.close()
 
+        #set Limit addresses for MM file
         print "Reading address ranges and setting limits"
         mm = savedTask.mm
-        #set Limit addresses for MM file
+        
         mmData["entries"][0]["mm_start_code"] = "{0:#x}".format(mm.start_code)
         mmData["entries"][0]["mm_end_code"] = "{0:#x}".format(mm.end_code)
         mmData["entries"][0]["mm_start_data"] = "{0:#x}".format(mm.start_data)
@@ -598,6 +599,25 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         mmData["entries"][0]["mm_env_end"] = "{0:#x}".format(mm.env_end)
         mmData["entries"][0]["exe_file_id"] = shmidDic[progName]
         
+        #Reading Auxilary Vector
+        print "Reading Auxiliary Vector"
+        saved_auxv = []
+        addr = int(mm.__str__()) + 320
+        ymmh_space_vect = []
+        for i in range(0, 38):
+            reverse = []
+            dataByte = self.read_addr_range(savedTask, addr, 8)
+            for c in dataByte:
+                reverse.insert(0, "{0:02x}".format(ord(c)))
+            
+            reverse.insert(0, "0x")
+            value = ''.join(reverse)
+            saved_auxv.append(int(value, 16))
+            addr += 8
+
+        mmData["entries"][0]["mm_saved_auxv"] = saved_auxv
+
+
         #Files used by process: TYPE = EXTRACTED
         for filp, fd in task.lsof():
             if fd > 2:
