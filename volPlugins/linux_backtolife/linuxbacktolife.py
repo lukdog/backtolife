@@ -277,7 +277,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                 "oom_score_adj": int(task.signal.oom_score_adj)
                                 } 
                     
-                    if int(task.state) == 0:
+                    if int(task.state) != 1 and int(task.state) != 2 and int(task.state) != 3:
                         tcData["task_state"] = 1
 
 
