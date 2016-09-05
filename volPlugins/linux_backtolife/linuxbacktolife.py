@@ -5,6 +5,7 @@ import volatility.plugins.linux.proc_maps as linux_proc_maps
 import volatility.plugins.linux.find_file as linux_find_file
 import volatility.plugins.linux.dump_map as linux_dump_map
 import volatility.plugins.linux_elf_dump.elfdump as linux_elf_dump
+import volatility.plugins.linux_dump_sock.linuxdumpsock as linux_dump_sock
 import volatility.plugins.linux.info_regs as linux_info_regs
 from volatility.renderers import TreeGrid
 from volatility.renderers.basic import Address
@@ -46,6 +47,16 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         data = linux_elf_dump.linux_elf_dump(self._config).calculate()
         data = linux_elf_dump.linux_elf_dump(self._config).render_text(outfd, data)
     
+    def dumpSock(self, task):
+        data = linux_dump_sock.linux_dump_sock(self._config).get_sock_info(task)
+        inetFile = open("inetsk.json", "w")
+        inetData = {"magic":"INETSK", 
+                    "entries":[]}
+        for key, value in data.iteritems():
+            inetData["entries"].append(value)
+
+        inetFile.write(json.dumps(inetData, indent=4, sort_keys=False))
+
     #Method for extracting registers values
     def readRegs(self, task):
         info_regs = linux_info_regs.linux_info_regs(self._config).calculate()
@@ -665,6 +676,9 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         
         regfilesFile.write(json.dumps(regfilesData, indent=4, sort_keys=False))
         regfilesFile.close()
+
+        print "Dumping Sockets"
+        self.dumpSock(savedTask)
 
         print "Dumping ELF file"
         self.dumpElf(outfd)
