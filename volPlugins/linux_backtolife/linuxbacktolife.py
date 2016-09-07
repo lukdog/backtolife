@@ -655,6 +655,9 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 fname = linux_common.get_path(task, filp)
                 
                 if "/" not in fname:
+                    if "socket" in fname:
+                        regfilesData["sockets"] = []
+                        regfilesData["sockets"].append(fd-1)
                     continue
                     
                 typeF = "extracted" ##TODO
