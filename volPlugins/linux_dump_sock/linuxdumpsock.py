@@ -93,7 +93,9 @@ class linux_dump_sock(linux_pslist.linux_pslist):
                     sock_proto = node.sk.sk_protocol
                     sock_family = node.sk.__sk_common.skc_family
                     sock_type = node.sk.sk_type
-                    sock_backlog = node.sk.sk_type
+
+                    inet_sock = node.cast("inet_connection_sock")
+                    sock_backlog = inet_sock.icsk_backoff
                     sock_sndbuf = node.sk.sk_sndbuf
                     sock_rcvbuf = node.sk.sk_rcvbuf
 
