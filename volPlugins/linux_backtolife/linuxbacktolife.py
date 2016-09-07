@@ -63,7 +63,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             if "tcp_stream" in value.keys():
                 stream = value["tcp_stream"]
                 value.pop("tcp_stream", None)
-                streamData = {"MAGIC":"TCP_STREAM", "entries":[stream]}
+                streamData = {"magic":"TCP_STREAM", "entries":[stream]}
                 streamFile = open("tcp-stream-{0:x}.json".format(int(key)), "w")
                 streamFile.write(json.dumps(streamData, indent=4, sort_keys=False))
                 streamFile.close()
