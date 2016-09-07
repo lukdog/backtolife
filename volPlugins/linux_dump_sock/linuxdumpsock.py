@@ -1,3 +1,14 @@
+# This plugins requires kernel structures which are not inside default volatility linux profile.
+# In order to use it, is necessary to modify module.c file importing two diffferent libraries:
+# tcp_sock: #include <linux/tcp.h>
+# inet_connection_sock: #include <net/inet_connection_sock.h>
+
+"""
+@author: Luca Doglione, Marco Senno
+@license: 
+@contact: 
+"""
+
 import socket
 import volatility.obj as obj
 import volatility.plugins.linux.common as linux_common
@@ -7,6 +18,15 @@ import volatility.plugins.linux.pslist as linux_pslist
 class linux_dump_sock(linux_pslist.linux_pslist):
     """Dumps infos about opened socket of a process"""
     
+    TCPI_OPT_TIMESTAMPS = 1
+    TCPI_OPT_SACK = 2
+    TCPI_OPT_WSCALE = 4
+    TCPI_OPT_ECN = 8
+    TCPI_OPT_ECN_SEEN = 16
+    TCPI_OPT_SYN_DATA = 32
+    TCP_ECN_OK = 1
+    TCP_ECN_SEEN = 8
+
     def __init__(self, config, *args, **kwargs):
         linux_pslist.linux_pslist.__init__(self, config, *args, **kwargs)
 
@@ -19,6 +39,31 @@ class linux_dump_sock(linux_pslist.linux_pslist):
         tasks = linux_pslist.linux_pslist.calculate(self)
         for task in tasks:
             yield task 
+
+    def get_tcpi_options(self, tcp_sock):
+        options = 0
+
+        if tcp_sock.rx_opt.tstamp_ok:
+            options |= self.TCPI_OPT_TIMESTAMPS
+
+        if tcp_sock.rx_opt.sack_ok:
+            options |= self.TCPI_OPT_SACK
+
+        if tcp_sock.rx_opt.wscale_ok:
+            options |= self.TCPI_OPT_WSCALE
+
+        if tcp_sock.ecn_flags & self.TCP_ECN_OK:
+            options != self.TCPI_OPT_ECN
+
+        if tcp_sock.ecn_flags & self.TCP_ECN_SEEN:
+            options != self.TCPI_OPT_ECN_SEEN
+
+        if tcp_sock.syn_data_acked:
+            options != self.TCPI_OPT_SYN_DATA
+
+        return options
+
+
 
     def get_sock_info(self, task):
 
@@ -97,6 +142,40 @@ class linux_dump_sock(linux_pslist.linux_pslist):
                                                         },
                                                 "ip_opts":{}
                                                 }
+
+                    if proto == "TCP":
+
+                        # Readig values for tcp_info structure, this structure is used by CRIU, 
+                        # but it's not a kernel structure,
+                        # in kernel source (http://lxr.free-electrons.com/source/net/ipv4/tcp.c#L2644) 
+                        # values are read using 2 different kernel structures (tcp_sock, inet_connection_sock)
+                        # tcp_get_info: http://lxr.free-electrons.com/source/include/linux/tcp.h#L371
+                        tcp_sock = node.cast("tcp_sock")
+
+                        tcp_snd_wscale = tcp_sock.rx_opt.snd_wscale
+                        tcp_rcv_wscale = tcp_sock.rx_opt.rcv_wscale
+                        tcp_mss_clamp = tcp_sock.rx_opt.mss_clamp
+                        tcp_mask = self.get_tcpi_options(tcp_sock)
+                        tcp_inq_len = tcp_sock.rcv_nxt - tcp_sock.copied_seq
+                        tcp_outq_len = tcp_sock.write_seq - tcp_sock.snd_una
+                        tcp_inq_seq = tcp_sock.rcv_nxt
+                        tcp_outq_seq = tcp_sock.write_seq
+                        tcp_unsq_len = 0 #Not Found
+                        tcp_timestamp = 0 #Not Found
+                        tcp_stream_data = {
+                                            "inq_len":int(tcp_inq_len),
+                                            "inq_seq":int(tcp_inq_seq),
+                                            "outq_len":int(tcp_outq_len),
+                                            "outq_seq":int(tcp_outq_seq),
+                                            "opt_mask":"{0:#x}".format(tcp_mask),
+                                            "snd_wscale":int(tcp_snd_wscale),
+                                            "mss_clamp":int(tcp_mss_clamp),
+                                            "rcv_wscale":int(tcp_rcv_wscale),
+                                            "timestamp":int(tcp_timestamp),
+                                            "unsq_len":int(tcp_unsq_len),
+                                            "extra":{"outq":"", "inq":""}
+                                            }
+                        sockets_dic[sock_ino]["tcp_stream"] = tcp_stream_data
 
         return sockets_dic
 

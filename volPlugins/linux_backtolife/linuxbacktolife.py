@@ -1,3 +1,9 @@
+"""
+@author: Luca Doglione, Marco Senno
+@license: 
+@contact: 
+"""
+
 import volatility.obj as obj
 import volatility.debug as debug
 import volatility.plugins.linux.common as linux_common
@@ -47,15 +53,25 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         data = linux_elf_dump.linux_elf_dump(self._config).calculate()
         data = linux_elf_dump.linux_elf_dump(self._config).render_text(outfd, data)
     
+    #Method for dumping sockets info relative to this process
     def dumpSock(self, task):
         data = linux_dump_sock.linux_dump_sock(self._config).get_sock_info(task)
         inetFile = open("inetsk.json", "w")
         inetData = {"magic":"INETSK", 
                     "entries":[]}
         for key, value in data.iteritems():
+            if "tcp_stream" in value.keys():
+                stream = value["tcp_stream"]
+                value.pop("tcp_stream", None)
+                streamData = {"MAGIC":"TCP_STREAM", "entries":[stream]}
+                streamFile = open("tcp-stream-{0:x}.json".format(int(key)), "w")
+                streamFile.write(json.dumps(streamData, indent=4, sort_keys=False))
+                streamFile.close()
+
             inetData["entries"].append(value)
 
         inetFile.write(json.dumps(inetData, indent=4, sort_keys=False))
+        inetFile.close()
 
     #Method for extracting registers values
     def readRegs(self, task):
