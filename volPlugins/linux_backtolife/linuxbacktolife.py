@@ -13,6 +13,7 @@ import volatility.plugins.linux.dump_map as linux_dump_map
 import volatility.plugins.linux_elf_dump.elfdump as linux_elf_dump
 import volatility.plugins.linux_dump_sock.linuxdumpsock as linux_dump_sock
 import volatility.plugins.linux_dump_signals.linuxdumpsignals as linux_dump_signals
+import volatility.plugins.linux_dump_auxv.linuxdumpauxv as linux_dump_auxv
 import volatility.plugins.linux.info_regs as linux_info_regs
 from volatility.renderers import TreeGrid
 from volatility.renderers.basic import Address
@@ -579,22 +580,8 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         
         #Reading Auxilary Vector
         print "Reading Auxiliary Vector"
-        saved_auxv = []
-        addr = int(mm.__str__()) + 320
-        ymmh_space_vect = []
-        for i in range(0, 38):
-            reverse = []
-            dataByte = self.read_addr_range(savedTask, addr, 8)
-            for c in dataByte:
-                reverse.insert(0, "{0:02x}".format(ord(c)))
-            
-            reverse.insert(0, "0x")
-            value = ''.join(reverse)
-            saved_auxv.append(int(value, 16))
-            addr += 8
-
+        saved_auxv = linux_dump_auxv.linux_dump_auxv(self._config).read_auxv(task)
         mmData["entries"][0]["mm_saved_auxv"] = saved_auxv
-
 
         #Files used by process: TYPE = EXTRACTED
         for filp, fd in task.lsof():
@@ -636,7 +623,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         regfilesFile.close()
 
         print "Searching Signal Handler and sigactions"
-        self.dumpSignals(task)
+        self.dumpSignals(savedTask)
 
         print "Dumping Sockets"
         self.dumpSock(savedTask)
