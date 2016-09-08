@@ -12,6 +12,7 @@ import volatility.plugins.linux.find_file as linux_find_file
 import volatility.plugins.linux.dump_map as linux_dump_map
 import volatility.plugins.linux_elf_dump.elfdump as linux_elf_dump
 import volatility.plugins.linux_dump_sock.linuxdumpsock as linux_dump_sock
+import volatility.plugins.linux_dump_signals.linuxdumpsignals as linux_dump_signals
 import volatility.plugins.linux.info_regs as linux_info_regs
 from volatility.renderers import TreeGrid
 from volatility.renderers.basic import Address
@@ -72,6 +73,17 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
 
         inetFile.write(json.dumps(inetData, indent=4, sort_keys=False))
         inetFile.close()
+
+    #Method for dumping sigactions
+    def dumpSignals(self, task):
+        data = linux_dump_signals.linux_dump_signals(self._config).read_sigactions(task)
+        sigactsData = {"magic":"SIGACT", "entries":data}
+
+        print "\tWriting sigacts-{0}.json file".format(self._config.PID)
+        sigactsFile = open("sigacts-{0}.json".format(self._config.PID), "w")
+        sigactsFile.write(json.dumps(sigactsData, indent=4, sort_keys=False))
+        sigactsFile.close()
+
 
     #Method for extracting registers values
     def readRegs(self, task):
@@ -347,70 +359,6 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         segment = proc_as.zread(start, size)
         return segment
     
-    #Method for generating sigactions
-    def read_sigactions(self, task, outfd):
-    
-        sigacts = {"magic":"SIGACT", "entries":[]}
-        
-        handler = task.sighand
-        action_vector = handler+8
-        
-        self.table_header(outfd, [("Signal", "2"), ("Sigaction", "18"), ("Flags",   "10"), ("Restorer", "18"), ("Mask", "18")])
-
-        for i in range(1, 65):
-            if i == 9 or i == 19:
-                action_vector+=32
-                continue
-        
-            reverse = []
-            #sigaction
-            sigaction = self.read_addr_range(task, action_vector, 8)
-            for c in sigaction:
-                reverse.insert(0, "{0:02x}".format(ord(c)))
-                
-            reverse.insert(0, "0x")
-            action = ''.join(reverse)
-            
-            reverse = []
-            action_vector+=8
-            #flags
-            sigaction = self.read_addr_range(task, action_vector, 4)
-            for c in sigaction:
-                reverse.insert(0, "{0:02x}".format(ord(c)))
-                
-            reverse.insert(0, "0x")
-            flags = ''.join(reverse)
-            
-            reverse = []
-            #Sarebbero 4 di flags ma ci sono altri 4 a 0(?)
-            action_vector+=8
-            #restorer
-            sigaction = self.read_addr_range(task, action_vector, 8)
-            for c in sigaction:
-                reverse.insert(0, "{0:02x}".format(ord(c)))
-                
-            reverse.insert(0, "0x")
-            restorer = ''.join(reverse)
-            
-            reverse = []
-            action_vector += 8
-            #mask
-            sigaction = self.read_addr_range(task, action_vector, 8)
-            for c in sigaction:
-                reverse.insert(0, "{0:02x}".format(ord(c)))
-                
-            reverse.insert(0, "0x")
-            mask = ''.join(reverse)
-            
-            action_element = {"sigaction":action, "flags":flags, "restorer":restorer, "mask":mask}
-            sigacts["entries"].append(action_element)
-            
-            #Print results
-            self.table_row(outfd,i, action, flags, restorer, mask)
-            action_vector += 8
-        
-        return sigacts
-
     #Build pstree file for CRIU with info about process and his threads
     def buildPsTree(self, task):
         pstreeData = {"magic":"PSTREE", "entries":[{
@@ -521,7 +469,6 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         if not self._config.PID:
             debug.error("You have to specify a process to dump. Use the option -p.\n")
         
-
         file_name = "pages-1.img"
         file_path = os.path.join(self._config.DUMP_DIR, file_name)
         
@@ -555,7 +502,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                             
         regfilesFile = open("procfiles.json".format(self._config.PID), "w")
         regfilesData = {"entries":[], "pid":self._config.PID, "threads":[]}
-        sigactsFile = open("sigacts-{0}.json".format(self._config.PID), "w")
+        
 
         self.table_header(outfd, [("Start", "#018x"), ("End",   "#018x"), ("Number of Pages", "6"), ("File Path", "")])
         outfile = open(file_path, "wb")
@@ -666,8 +613,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 regfilesData["entries"].append(fileE)
                 procFilesExtr.append(fname)
                  
-
-        
+ 
         print "Extracting Files: " 
         self.dumpFile(procFilesExtr)
 
@@ -680,13 +626,6 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         print "Searching registers values and threads states"
         self.readRegs(savedTask)
 
-        print "Searching Signal Handler and sigactions"
-        sigactsData = self.read_sigactions(task, outfd)
-
-        print "Writing Files"
-        sigactsFile.write(json.dumps(sigactsData, indent=4, sort_keys=False))
-        sigactsFile.close()
-
         pagemap.write(json.dumps(pagemapData, indent=4, sort_keys=False))
         pagemap.close()
 
@@ -695,6 +634,9 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         
         regfilesFile.write(json.dumps(regfilesData, indent=4, sort_keys=False))
         regfilesFile.close()
+
+        print "Searching Signal Handler and sigactions"
+        self.dumpSignals(task)
 
         print "Dumping Sockets"
         self.dumpSock(savedTask)
