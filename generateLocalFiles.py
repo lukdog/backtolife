@@ -24,7 +24,11 @@ fdInfoJson= {"magic": "FDINFO", "entries": [    {"id": 1, "flags": 0,  "type": "
             }
 
 PID = data["pid"]
+threads = data["threads"]
+sockets = data["sockets"]
+data.pop("threads",None)
 data.pop("pid", None)
+data.pop("sockets",None)
 
 maxId =0
 for single_file in data["entries"]:
@@ -40,9 +44,6 @@ for single_file in data["entries"]:
     if  not os.path.isfile(single_file["name"]):
         print "Unable to locate file: "+single_file["name"]
         exit()
-
-
-
 
     single_file["flags"]=""
     single_file["pos"]=0                
@@ -60,6 +61,11 @@ for single_file in data["entries"]:
     single_file.pop("type",None)
     if single_file["id"]> maxId:
         maxId = single_file["id"]
+
+
+#append sockets in fdinfo
+for sock in sockets:
+	fdInfoJson["entries"].append( {"id": sock, "flags": 0,  "type": "INETSK", "fd": sock+1 } )
 
 wkJson= { "id":maxId+1, "flags":"", "pos":0, "fown": fownJsonZero ,"name":PATH }
 data["entries"].append(wkJson)
@@ -81,7 +87,7 @@ fdInfoFile.close()
 fsJson= {"magic":"FS", "entries":[{"cwd_id":wkJson["id"], "root_id":rootJson["id"], "umask":0}]}
 maskmode = oct(os.stat("/")[ST_MODE])[-3:]
 umask= int(str(7 - int(maskmode[0]))+str(7-int(maskmode[1]))+str(7-int(maskmode[2])))
-fsJson["umask"]=umask
+fsJson["entries"][0]["umask"]=umask
 fsFile = open("fs-"+PID+".json", "w")
 fsFile.write(json.dumps(fsJson,indent=4, sort_keys = False))
 fsFile.close()
@@ -251,9 +257,6 @@ for line in limits:
 	else:
 		f1 = fieldslim[len(fieldslim)-3]
 		f2 = fieldslim[len(fieldslim)-4]
-
-
-	
 	if f1 == "unlimited":
 		f1="18446744073709551615"
 	if f2 == "unlimited":
@@ -261,7 +264,7 @@ for line in limits:
 	rlimitsJson["rlimits"].append({"cur":int(str(f2)),"max":int(str(f1))})
 
 
-# for loop for each thread
+# append rlimits for process pid
 coreFile = open("core-"+PID+".json","r")
 strcore_json = coreFile.read()
 dataCore = json.loads(strcore_json)
@@ -272,6 +275,17 @@ coreFile.write(json.dumps(dataCore,indent=4, sort_keys = False))
 coreFile.close()
 
 
+# append fown in inetsk.json
+inputFileinetsk = open(PATH+ "/inetsk.json","r")
+inetstr = inputFileinetsk.read()
+inetJson = json.loads(inetstr)
+for d in inetJson["entries"]:
+	d["fown"] = fownJsonZero
+inputFileinetsk.close()
+
+inputFileinetsk = open(PATH+ "/inetsk.json","w")
+inputFileinetsk.write(json.dumps(inetJson,indent=4, sort_keys = False))
+inputFileinetsk.close()
 
 
 
