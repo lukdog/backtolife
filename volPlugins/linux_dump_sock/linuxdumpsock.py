@@ -74,7 +74,7 @@ class linux_dump_sock(linux_pslist.linux_pslist):
 
         for inode, fd in task.lsof():
                 path = linux_common.get_path(task, inode)
-                if "socket" in path:
+                if "socket:[" in path:
                     path = path.replace("[", "")
                     path = path.replace("]", "")
                     ino = path.split(":")[1]

@@ -31,8 +31,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         self._config.add_option('DUMP-DIR', short_option = 'D', default = "./", help = 'Output directory', action = 'store', type = 'str')
     
     #Method for dumping a file to local disc extracting it from a memory dump
-    def dumpFile(self, listF):
-        listInode = []
+    def dumpFile(self, listF, task):
         toFind = len(listF)
         if toFind == 0:
             print "\t0 files have to be extracted"
@@ -40,16 +39,19 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         else: 
             print "\t" + str(toFind) + "files have to be extracted"
                 
-        for (_, _, file_path, file_dentry)in linux_find_file.linux_find_file(self._config).walk_sbs():
-            if file_path in listF:
-                listInode.append(file_dentry.d_inode)
-                toFind -= 1
-                if toFind == 0:
-                    break
-        
-        for a in listInode:
-            print "\t{0:#x}".format(a)
+        self._config.add_option('INODE', short_option = 'i', default = None, help = 'inode to write to disk', action = 'store', type = 'int')
+        self._config.add_option('OUTFILE', short_option = 'O', default = None, help = 'output file path', action = 'store', type = 'str')
+
+        for name, inode in listF.iteritems():
+            self._config.inode = inode       
+            self._config.outfile = name
+            linux_find_file.linux_find_file(self._config).calculate()
+            print "\t{0} extracted".format(fname)
     
+        self._config.remove_option('INODE')
+        self._config.remove_option('OUTFILE')
+
+
     #Method for dumping elf file relative to the process
     def dumpElf(self, outfd):
         data = linux_elf_dump.linux_elf_dump(self._config).calculate()
@@ -70,7 +72,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 # When a process is running, the consumed CPU time needs to be recorded 
                 # for the cfs scheduler. sum_exec_runtime is used for this purpose. 
                 # We use this value in order to have an estimation of TCP timestamp
-                streamData["entries"]["timestamp"] = task.se.sum_exec_runtime #? 
+                streamData["entries"][0]["timestamp"] = long(task.se.sum_exec_runtime) 
                 streamFile = open("tcp-stream-{0:x}.json".format(int(key)), "w")
                 streamFile.write(json.dumps(streamData, indent=4, sort_keys=False))
                 streamFile.close()
@@ -481,7 +483,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         progName = ""
         shmidDic = {}
         procFiles = {} #Files used in process
-        procFilesExtr = [] #Files that have to be extracted
+        procFilesExtr = {} #Files that have to be extracted
         
         print "Creating pages file for process with PID: " + self._config.PID
         buildJson = True
@@ -591,10 +593,11 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         #Files used by process: TYPE = EXTRACTED
         for filp, fd in task.lsof():
             if fd > 2:
-                fname = linux_common.get_path(task, filp)
-                
+                fpath = linux_common.get_path(task, filp)
+                fname = fpath.replace("/", "_")
+
                 if "/" not in fname:
-                    if "socket" in fname:
+                    if "socket:[" in fname:
                         regfilesData["sockets"] = []
                         regfilesData["sockets"].append(fd-1)
                     continue
@@ -603,11 +606,11 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 idF = fd -1
                 fileE = {"name":fname, "id": idF, "type":typeF}
                 regfilesData["entries"].append(fileE)
-                procFilesExtr.append(fname)
+                procFilesExtr[fname] = "{0:#x}".format(filp)
                  
  
         print "Extracting Files: " 
-        self.dumpFile(procFilesExtr)
+        self.dumpFile(procFilesExtr, savedTask)
 
         print "Building PsTree"
         self.buildPsTree(savedTask)
