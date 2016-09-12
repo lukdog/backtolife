@@ -66,6 +66,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 stream = value["tcp_stream"]
                 value.pop("tcp_stream", None)
                 streamData = {"magic":"TCP_STREAM", "entries":[stream]}
+                streamData["entries"]["timestamp"] = task.se.sum_exec_runtime #? 
                 streamFile = open("tcp-stream-{0:x}.json".format(int(key)), "w")
                 streamFile.write(json.dumps(streamData, indent=4, sort_keys=False))
                 streamFile.close()
