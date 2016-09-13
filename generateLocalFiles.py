@@ -17,11 +17,7 @@ dataJson = { "magic":"REG_FILES" }
 #fdType= ["UND","REG","PIPE","FIFO","INETSK","UNIXSK","EVENTFD","EVENTPOLL","INOTIFY","SIGNALFD",
 #	"PACKETSK","TTY","FANOTIFY","NETLINKSK","NS","TUNF","EXT","TIMERFD"]
 
-fdInfoJson= {"magic": "FDINFO", "entries": [    {"id": 1, "flags": 0,  "type": "TTY",  "fd": 0}, 
-                                                {"id": 1,  "flags": 0, "type": "TTY", "fd": 1}, 
-                                                {"id": 1, "flags": 0,  "type": "TTY", "fd": 2}
-                                           ]
-            }
+
 
 PID = data["pid"]
 threads = data["threads"]
@@ -36,10 +32,6 @@ for single_file in data["entries"]:
         new_name = single_file["name"].split("/")
         new_name_n = PATH + "/" + new_name[len(new_name)-1]
         single_file["name"]=new_name_n
-	if single_file["type"]=="extracted":
-    	    single_fd = {"id":single_file["id"],"flags":0,"type":"REG","fd":single_file["id"]+1}
-    	    fdInfoJson["entries"].append(single_fd)
-
     
     if  not os.path.isfile(single_file["name"]):
         print "Unable to locate file: "+single_file["name"]
@@ -63,10 +55,6 @@ for single_file in data["entries"]:
         maxId = single_file["id"]
 
 
-#append sockets in fdinfo
-for sock in sockets:
-	fdInfoJson["entries"].append( {"id": sock, "flags": 0,  "type": "INETSK", "fd": sock+1 } )
-
 wkJson= { "id":maxId+1, "flags":"", "pos":0, "fown": fownJsonZero ,"name":PATH }
 data["entries"].append(wkJson)
 rootJson = { "id":maxId+2, "flags":"", "pos":0, "fown": fownJsonZero ,"name":"/"}
@@ -79,10 +67,6 @@ outputFile = open(PATH+ "/reg-files.json","w")
 outputFile.write(json.dumps(dataJson , indent=4 , sort_keys=False))
 outputFile.close()
 inputFile.close()
-#generation fdinfo
-fdInfoFile = open(PATH+"/fdinfo-2.json","w")
-fdInfoFile.write(json.dumps(fdInfoJson , indent=4 , sort_keys=False))
-fdInfoFile.close()
 #generation fs.img
 fsJson= {"magic":"FS", "entries":[{"cwd_id":wkJson["id"], "root_id":rootJson["id"], "umask":0}]}
 maskmode = oct(os.stat("/")[ST_MODE])[-3:]

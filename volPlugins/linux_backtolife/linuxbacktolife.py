@@ -37,19 +37,24 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             print "\t0 files have to be extracted"
             return
         else: 
-            print "\t" + str(toFind) + "files have to be extracted"
+            print "\t" + str(toFind) + " files have to be extracted"
                 
-        self._config.add_option('INODE', short_option = 'i', default = None, help = 'inode to write to disk', action = 'store', type = 'int')
-        self._config.add_option('OUTFILE', short_option = 'O', default = None, help = 'output file path', action = 'store', type = 'str')
+        self._config.add_option('INODE', short_option = 'i', default = None, action = 'store', type = 'int')
+        self._config.add_option('OUTFILE', short_option = 'O', default = None, action = 'store', type = 'str')
+        pid = self._config.PID
+        self._config.remove_option('PID')
 
         for name, inode in listF.iteritems():
             self._config.inode = inode       
-            self._config.outfile = name
+            self._config.outfile = "./" + name
             linux_find_file.linux_find_file(self._config).calculate()
-            print "\t{0} extracted".format(fname)
+            print "\t{0} extracted".format(name)
     
         self._config.remove_option('INODE')
         self._config.remove_option('OUTFILE')
+        self._config.add_option('PID', short_option = 'p', default = None, action = 'store', type = 'str')
+        self._config.PID = pid
+
 
 
     #Method for dumping elf file relative to the process
@@ -459,7 +464,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             maxFd = 0
             for filp, fd in task.lsof(): 
                 #self.table_row(outfd, Address(task.obj_offset), str(task.comm), task.pid, fd, linux_common.get_path(task, filp))
-                if fd > maxFd:
+                if fd > maxFd and "/dev/pts/" not in linux_common.get_path(task, filp):
                     maxFd = fd
             
             dic[progname] = maxFd
@@ -470,6 +475,30 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         else:
             dic[current_name] = len(dic) + dic[progname]
             return dic[current_name]
+
+
+    def dump_fd_info(self, task):
+
+        fdinfoFile = open("fdinfo-2.json", "w")
+        entries = []
+        for file, fd in task.lsof():
+            path = linux_common.get_path(task, filp)
+            element = {"id":0, "flags":0, "type":"", "fd":int(fd)}
+            if "/dev/pts" in path:
+                element["id"] = 1
+                element["type"] = "TTY"
+            elif "socket:[" in path:
+                element["id"] = fd-1
+                element["type"] = "INETSK"
+            else:
+                element["id"] = fd-1
+                element["type"] = "REG"
+
+            entries.append(element)
+        data = {"magic":"FDINFO", "entries":entries}
+        fdinfoFile.write(json.dumps(data, indent=4, sort_keys=False))
+        fdinfoFile.close()
+
 
 
     #Method that perform all the operations
@@ -592,25 +621,27 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
 
         #Files used by process: TYPE = EXTRACTED
         for filp, fd in task.lsof():
-            if fd > 2:
-                fpath = linux_common.get_path(task, filp)
-                fname = fpath.replace("/", "_")
-
-                if "/" not in fname:
-                    if "socket:[" in fname:
+            fpath = linux_common.get_path(task, filp)
+            if "/dev/pts" not in fpath:
+                if "/" not in fpath:
+                    if "socket:[" in fpath:
                         regfilesData["sockets"] = []
                         regfilesData["sockets"].append(fd-1)
                     continue
-                    
-                typeF = "extracted" ##TODO
-                idF = fd -1
-                fileE = {"name":fname, "id": idF, "type":typeF}
-                regfilesData["entries"].append(fileE)
-                procFilesExtr[fname] = "{0:#x}".format(filp)
+                else:
+                    fname = fpath.replace("/", "_")
+                    typeF = "extracted"
+                    idF = fd -1
+                    fileE = {"name":fname, "id": idF, "type":typeF}
+                    regfilesData["entries"].append(fileE)
+                    procFilesExtr[fname] = "{0:#x}".format(filp.dentry.d_inode)
                  
  
         print "Extracting Files: " 
         self.dumpFile(procFilesExtr, savedTask)
+
+        print "Extracting File Descriptors info"
+        self.dump_fd_info(savedTask)
 
         print "Building PsTree"
         self.buildPsTree(savedTask)
