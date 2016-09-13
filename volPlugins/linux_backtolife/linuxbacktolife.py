@@ -482,7 +482,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         fdinfoFile = open("fdinfo-2.json", "w")
         entries = []
         for file, fd in task.lsof():
-            path = linux_common.get_path(task, filp)
+            path = linux_common.get_path(task, file)
             element = {"id":0, "flags":0, "type":"", "fd":int(fd)}
             if "/dev/pts" in path:
                 element["id"] = 1
