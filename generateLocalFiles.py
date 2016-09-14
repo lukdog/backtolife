@@ -21,10 +21,10 @@ dataJson = { "magic":"REG_FILES" }
 
 PID = data["pid"]
 threads = data["threads"]
-sockets = data["sockets"]
 data.pop("threads",None)
 data.pop("pid", None)
-data.pop("sockets",None)
+if "sockets" in data:
+    data.pop("sockets",None)
 
 maxId =0
 for single_file in data["entries"]:
