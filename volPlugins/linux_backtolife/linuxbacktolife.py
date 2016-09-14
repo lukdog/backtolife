@@ -469,7 +469,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                     maxFd = fd
             
             dic[progname] = maxFd
-            
+
         if current_name in dic:
             return dic[current_name]
         else:
@@ -543,12 +543,19 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
 
         self.table_header(outfd, [("Start", "#018x"), ("End",   "#018x"), ("Number of Pages", "6"), ("File Path", "")])
         outfile = open(file_path, "wb")
+
+        vmas = []
+
         for task, vma in data:
             savedTask = task
             (fname, major, minor, ino, pgoff) = vma.info(task)
-            if progName == "":
-                progName = fname
+            vmas.append(vma)
+            if "[" not in fname and ".so" not in fname and ino != 0:
+                progname = fname
 
+
+        for vma in vmas:
+            (fname, major, minor, ino, pgoff) = vma.info(savedTask)
             vmasData = {"start":"{0:#x}".format(vma.vm_start),
                         "end":"{0:#x}".format(vma.vm_end),
                         "pgoff":pgoff,
@@ -576,7 +583,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 if fname == progName:
                     #ELF is extracted
                     typeF = "elf"
-                    nameF = task.comm + ".dump"
+                    nameF = savedTask.comm + ".dump"
                     
                     
                 
@@ -589,7 +596,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             #DUMP only what CRIU needs
             if str(vma.vm_flags) != "---" and fname != "[vdso]" and ".cache" not in fname and not exLib and "/lib/locale/" not in fname:
                 npage = 0
-                for page in self.read_addr_range_page(task, vma.vm_start, vma.vm_end):
+                for page in self.read_addr_range_page(savedTask, vma.vm_start, vma.vm_end):
                     outfile.write(page)
                     npage +=1
                 pagemapData["entries"].append({"vaddr":"{0:#x}".format(vma.vm_start), "nr_pages":npage})
