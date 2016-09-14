@@ -551,7 +551,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             (fname, major, minor, ino, pgoff) = vma.info(task)
             vmas.append(vma)
             if "[" not in fname and ".so" not in fname and ino != 0:
-                progname = fname
+                progName = fname
 
 
         for vma in vmas:
