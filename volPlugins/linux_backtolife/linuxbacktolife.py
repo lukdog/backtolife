@@ -462,7 +462,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
 
 
         if progname not in dic:
-            maxFd = 0
+            maxFd = 2
             for filp, fd in task.lsof(): 
                 #self.table_row(outfd, Address(task.obj_offset), str(task.comm), task.pid, fd, linux_common.get_path(task, filp))
                 if fd > maxFd and "/dev/pts/" not in linux_common.get_path(task, filp):
