@@ -49,7 +49,7 @@ def findRec(obj, path, name):
 			#sys.stdout = stdout
 			found = True
 			#print "Name Found: " + path + "." + fields[1]
-			paths.append(path + "." + fields[1])
+			paths.append(path + "." + fields[1] + " : " + getattr(obj, fields[1]).__str__())
 			#sys.stdout = stringIO
 			
 

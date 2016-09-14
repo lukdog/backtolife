@@ -460,7 +460,8 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         if current_name == "" or "[" in current_name:
             return 0
 
-        if current_name == progname:
+
+        if progname not in dic:
             maxFd = 0
             for filp, fd in task.lsof(): 
                 #self.table_row(outfd, Address(task.obj_offset), str(task.comm), task.pid, fd, linux_common.get_path(task, filp))
@@ -468,8 +469,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                     maxFd = fd
             
             dic[progname] = maxFd
-            return maxFd
-
+            
         if current_name in dic:
             return dic[current_name]
         else:
