@@ -272,7 +272,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                     "r10": "{0:#x}".format(regs["r10"]),
                                     "r9": "{0:#x}".format(regs["r9"]),
                                     "r8": "{0:#x}".format(regs["r8"]),
-                                    "ax": "{0:#x}".format(regs["rax"]),
+                                    "ax": "{0:#x}".format(regs["unknown"]),
                                     "cx": "{0:#x}".format(regs["rcx"]),
                                     "dx": "{0:#x}".format(regs["rdx"]),
                                     "si": "{0:#x}".format(regs["rsi"]),
