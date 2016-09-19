@@ -3,7 +3,7 @@
 @license: 
 @contact: 
 """
-
+import pdb
 import volatility.obj as obj
 import volatility.debug as debug
 import volatility.plugins.linux.common as linux_common
@@ -39,21 +39,20 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         else: 
             print "\t" + str(toFind) + " files have to be extracted"
                 
-        self._config.add_option('INODE', short_option = 'i', default = None, action = 'store', type = 'int')
-        self._config.add_option('OUTFILE', short_option = 'O', default = None, action = 'store', type = 'str')
-        pid = self._config.PID
-        self._config.remove_option('PID')
+    
+        for name, inode_addr in listF.iteritems():
+            inode = obj.Object("inode", offset = int(inode_addr, 0), vm = self.addr_space)
+            try: 
+                f = open(name, "wb")
+            except IOError, e:
+                debug.error("Unable to open output file (%s): %s" % (outfile, str(e)))
 
-        for name, inode in listF.iteritems():
-            self._config.inode = inode       
-            self._config.outfile = "./" + name
-            linux_find_file.linux_find_file(self._config).calculate()
+            for page in linux_find_file.linux_find_file(self._config).get_file_contents(inode):        
+                f.write(page)
+
+            f.close()
             print "\t{0} extracted".format(name)
     
-        self._config.remove_option('INODE')
-        self._config.remove_option('OUTFILE')
-        self._config.add_option('PID', short_option = 'p', default = None, action = 'store', type = 'str')
-        self._config.PID = pid
 
 
 
@@ -641,7 +640,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                     idF = fd -1
                     fileE = {"name":fname, "id": idF, "type":typeF}
                     regfilesData["entries"].append(fileE)
-                    procFilesExtr[fname] = "{0:#x}".format(filp.dentry.d_inode)
+                    procFilesExtr[fname] = "{0:#x}".format(filp.f_inode)
                  
  
         print "Extracting Files: " 
