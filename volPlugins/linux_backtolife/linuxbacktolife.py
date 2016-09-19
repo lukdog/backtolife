@@ -636,6 +636,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                     continue
                 else:
                     fname = fpath.replace("/", "_")
+                    fname += str(fd)
                     typeF = "extracted"
                     idF = fd -1
                     fileE = {"name":fname, "id": idF, "type":typeF}
