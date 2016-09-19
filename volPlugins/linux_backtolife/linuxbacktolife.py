@@ -277,7 +277,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                     "si": "{0:#x}".format(regs["rsi"]),
                                     "di": "{0:#x}".format(regs["rdi"]),
                                     "orig_ax": "{0:#x}".format(regs["unknown"]),
-                                    "ip": "{0:#x}".format(regs["rip"]),
+                                    "ip": "{0:#x}".format(int(regs["rip"])-2),
                                     "cs": "{0:#x}".format(regs["cs"]),
                                     "flags": "{0:#x}".format(regs["eflags"]),
                                     "sp": "{0:#x}".format(regs["rsp"]),
@@ -292,7 +292,6 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                 "fpregs": float_regs[thread_name]["fpregs"],
                                 "clear_tid_addr": "0x0"
                     }
-                    
                     
                     tcData = {
                                 "task_state": int(task.state),
@@ -639,7 +638,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                     fname += str(fd)
                     typeF = "extracted"
                     idF = fd -1
-                    fileE = {"name":fname, "id": idF, "type":typeF}
+                    fileE = {"name":fname, "id": idF, "type":typeF, "pos":long(filp.f_pos)}
                     regfilesData["entries"].append(fileE)
                     procFilesExtr[fname] = "{0:#x}".format(filp.f_inode)
                  
