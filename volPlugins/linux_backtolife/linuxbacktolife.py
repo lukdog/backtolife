@@ -41,7 +41,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 
     
         for name, inode_addr in listF.iteritems():
-            inode = obj.Object("inode", offset = int(inode_addr, 0), vm = self.addr_space)
+            inode = obj.Object("inode", offset = int(inode_addr, 0), vm = self.addr_spacet)
             try: 
                 f = open(name, "wb")
             except IOError, e:
@@ -277,7 +277,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                     "si": "{0:#x}".format(regs["rsi"]),
                                     "di": "{0:#x}".format(regs["rdi"]),
                                     "orig_ax": "{0:#x}".format(regs["unknown"]),
-                                    "ip": "{0:#x}".format(int(regs["rip"])-2),
+                                    "ip": "{0:#x}".format(int(regs["rip"])-2), ####CRIU
                                     "cs": "{0:#x}".format(regs["cs"]),
                                     "flags": "{0:#x}".format(regs["eflags"]),
                                     "sp": "{0:#x}".format(regs["rsp"]),
