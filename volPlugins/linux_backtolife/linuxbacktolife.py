@@ -12,6 +12,7 @@ import volatility.plugins.linux.find_file as linux_find_file
 import volatility.plugins.linux.dump_map as linux_dump_map
 import volatility.plugins.linux_elf_dump.elfdump as linux_elf_dump
 import volatility.plugins.linux_dump_sock.linuxdumpsock as linux_dump_sock
+import volatility.plugins.linux_dump_unix_sock.linuxdumpunixsock as linux_dump_unix_sock
 import volatility.plugins.linux_dump_signals.linuxdumpsignals as linux_dump_signals
 import volatility.plugins.linux_dump_auxv.linuxdumpauxv as linux_dump_auxv
 import volatility.plugins.linux.info_regs as linux_info_regs
@@ -85,6 +86,18 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
 
         inetFile.write(json.dumps(inetData, indent=4, sort_keys=False))
         inetFile.close()
+
+    #Method for dumping sockets info relative to this process
+    def dumpUnixSock(self, task):
+        data = linux_dump_unix_sock.linux_dump_unix_sock(self._config).get_sock_info(self.addr_space, task)
+        unixFile = open("unixsk.json", "w")
+        unixData = {"magic":"UNIXSK", 
+                    "entries":[]}
+        for value in data:
+            unixData["entries"].append(value)
+
+        unixFile.write(json.dumps(unixData, indent=4, sort_keys=False))
+        unixFile.close()
 
     #Method for dumping sigactions
     def dumpSignals(self, task):
@@ -672,6 +685,9 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
 
         print "Dumping Sockets"
         self.dumpSock(savedTask)
+
+        print "Dumping Unix Sockets"
+        self.dumpUnixSock(savedTask)
 
         print "Dumping ELF file"
         self.dumpElf(outfd)

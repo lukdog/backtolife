@@ -31,32 +31,34 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
             yield task 
 
 
-    def SOCKET_I(self, inode):
+    def SOCKET_I(self, addr_space, inode):
         # if too many of these, write a container_of
-        backsize = self.addr_space.profile.get_obj_size("socket")
+        backsize = addr_space.profile.get_obj_size("socket")
         addr = inode - backsize
 
-        return obj.Object('socket', offset = addr, vm = self.addr_space)
+        return obj.Object('socket', offset = addr, vm = addr_space)
 
    
-    def get_sock_info(self, task):
+    def get_sock_info(self, addr_space_arg, task):
 
         sockets = []
 
-        sfop = self.addr_space.profile.get_symbol("socket_file_ops")
-        dfop = self.addr_space.profile.get_symbol("sockfs_dentry_operations")
+        addr_space = addr_space_arg
+
+        sfop = addr_space.profile.get_symbol("socket_file_ops")
+        dfop = addr_space.profile.get_symbol("sockfs_dentry_operations")
         
         for filp, fdnum in task.lsof(): 
             if filp.f_op == sfop or filp.dentry.d_op == dfop:
                 iaddr = filp.dentry.d_inode
-                skt = self.SOCKET_I(iaddr)
-                inet_sock = obj.Object("inet_sock", offset = skt.sk, vm = self.addr_space)
+                skt = self.SOCKET_I(addr_space, iaddr)
+                inet_sock = obj.Object("inet_sock", offset = skt.sk, vm = addr_space)
 
                 if inet_sock.protocol in ("TCP", "UDP", "IP", "HOPOPT"):
                     family = inet_sock.sk.__sk_common.skc_family
 
                     if family == 1: # AF_UNIX
-                        node = obj.Object("unix_sock", offset = inet_sock.sk.v(), vm = self.addr_space)
+                        node = obj.Object("unix_sock", offset = inet_sock.sk.v(), vm = addr_space)
                        
 
                         #print "Node: {0:#x}".format(node)
@@ -66,7 +68,7 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
                         sock_ino = iaddr.i_ino
 
                         if node.addr:
-                            name_obj = obj.Object("sockaddr_un", offset = node.addr.name.obj_offset, vm = self.addr_space)
+                            name_obj = obj.Object("sockaddr_un", offset = node.addr.name.obj_offset, vm = addr_space)
                             name   = str(name_obj.sun_path)
                         else:
                             name = ""
@@ -121,9 +123,9 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
                         
                         #peer for the socket
                         peer = node.peer
-                        peerNode = obj.Object("unix_sock", offset=peer.v(), vm=self.addr_space)
+                        peerNode = obj.Object("unix_sock", offset=peer.v(), vm=addr_space)
                         if peerNode.addr:
-                            peer_name_obj = obj.Object("sockaddr_un", offset = peerNode.addr.name.obj_offset, vm = self.addr_space)
+                            peer_name_obj = obj.Object("sockaddr_un", offset = peerNode.addr.name.obj_offset, vm = addr_space)
                             peer_name   = str(peer_name_obj.sun_path)
                         else:
                             peer_name = ""
@@ -155,7 +157,7 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
     def render_text(self, outfd, data):
         
         for task in data:
-            sock = self.get_sock_info(task)
+            sock = self.get_sock_info(self.addr_space, task)
             print "Unix Socket for process with pid: " + self._config.PID
             self.table_header(outfd, [("INode", "10"), ("FD",   "6"), ("State", "6"), ("Unix Socket Name", "")])
             for val in sock:
@@ -164,4 +166,4 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
                     if val["name"] == '\n' and val["id"] in self.peers:
                         self.table_row(outfd, val["ino"], val["id"]+1, val["state"], self.peers[val["id"]].split('\n')[0])
                     else:
-                        self.table_row(outfd, val["ino"], val["id"]+1, val["state"], val["name"].split('\n')[0])
+                        self.table_row(outfd, val["ino"], val["id"]+1, val["state"], base64.b64decode(val["name"].split('\n')[0]))
