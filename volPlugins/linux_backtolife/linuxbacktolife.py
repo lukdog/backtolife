@@ -63,7 +63,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         data = linux_elf_dump.linux_elf_dump(self._config).render_text(outfd, data)
     
     #Method for dumping sockets info relative to this process
-    def dumpSock(self, task):
+    def dumpSock(self, task, sockets_type):
         data = linux_dump_sock.linux_dump_sock(self._config).get_sock_info(task)
         inetFile = open("inetsk.json", "w")
         inetData = {"magic":"INETSK", 
@@ -83,18 +83,20 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 streamFile.close()
 
             inetData["entries"].append(value)
+            sockets_type[value["id"]+1] = "INETSK"
 
         inetFile.write(json.dumps(inetData, indent=4, sort_keys=False))
         inetFile.close()
 
     #Method for dumping sockets info relative to this process
-    def dumpUnixSock(self, task):
+    def dumpUnixSock(self, task, sockets_type):
         data = linux_dump_unix_sock.linux_dump_unix_sock(self._config).get_sock_info(self.addr_space, task)
         unixFile = open("unixsk.json", "w")
         unixData = {"magic":"UNIXSK", 
                     "entries":[]}
         for value in data:
             unixData["entries"].append(value)
+            ockets_type[value["id"]+1] = "UNIXSK"
 
         unixFile.write(json.dumps(unixData, indent=4, sort_keys=False))
         unixFile.close()
@@ -488,7 +490,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             return dic[current_name]
 
 
-    def dump_fd_info(self, task):
+    def dump_fd_info(self, task, sockets_type):
 
         fdinfoFile = open("fdinfo-2.json", "w")
         entries = []
@@ -500,7 +502,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 element["type"] = "TTY"
             elif "socket:[" in path:
                 element["id"] = fd-1
-                element["type"] = "INETSK"
+                element["type"] = sockets_type[fd]
             else:
                 element["id"] = fd-1
                 element["type"] = "REG"
@@ -659,9 +661,6 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         print "Extracting Files: " 
         self.dumpFile(procFilesExtr, savedTask)
 
-        print "Extracting File Descriptors info"
-        self.dump_fd_info(savedTask)
-
         print "Building PsTree"
         self.buildPsTree(savedTask)
 
@@ -683,11 +682,16 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         print "Searching Signal Handler and sigactions"
         self.dumpSignals(savedTask)
 
+        sockets_type = {}
+
         print "Dumping Sockets"
-        self.dumpSock(savedTask)
+        self.dumpSock(savedTask, sockets_type)
 
         print "Dumping Unix Sockets"
-        self.dumpUnixSock(savedTask)
+        self.dumpUnixSock(savedTask, sockets_type)
+
+        print "Extracting File Descriptors info"
+        self.dump_fd_info(savedTask, sockets_type)
 
         print "Dumping ELF file"
         self.dumpElf(outfd)
