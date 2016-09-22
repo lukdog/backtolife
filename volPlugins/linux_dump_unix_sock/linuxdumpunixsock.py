@@ -136,7 +136,8 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
                                 peer_name   = str(peer_name_obj.sun_path)
                             else:
                                 peer_name = ""
-                            sockets.append({ 
+                            
+                            peer_element = { 
                                                     "id":0,
                                                     "ino":peer_ino,
                                                     "type":1,
@@ -153,13 +154,14 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
                                                                 "so_rcv_tmo_sec":0,
                                                                 "so_rcv_tmo_usec":0
                                                             },
-                                                    "name":base64.b64encode((peer_name+'\0').encode('ascii')) + '\n'
-                                                    })
+                                                    "name":""
+                                                    }
 
                             if peer_name != "":
                                 self.peers[sock_id] = peer_name
+                                peer_element["name"] = base64.b64encode((peer_name+'\0').encode('ascii')) + '\n'
 
-
+                            sockets.append(peer_element)
                             peer_ino += 1
                         else:
                             element["peer"] = 0
