@@ -63,7 +63,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         data = linux_elf_dump.linux_elf_dump(self._config).render_text(outfd, data)
     
     #Method for dumping sockets info relative to this process
-    def dumpSock(self, task):
+    def dumpSock(self, task, sockets_type):
         data = linux_dump_sock.linux_dump_sock(self._config).get_sock_info(task)
         inetFile = open("inetsk.json", "w")
         inetData = {"magic":"INETSK", 
@@ -83,18 +83,22 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 streamFile.close()
 
             inetData["entries"].append(value)
+            sockets_type[value["id"]+1] = "INETSK"
 
         inetFile.write(json.dumps(inetData, indent=4, sort_keys=False))
         inetFile.close()
 
     #Method for dumping sockets info relative to this process
-    def dumpUnixSock(self, task):
+    def dumpUnixSock(self, task, sockets_type):
         data = linux_dump_unix_sock.linux_dump_unix_sock(self._config).get_sock_info(self.addr_space, task)
         unixFile = open("unixsk.json", "w")
         unixData = {"magic":"UNIXSK", 
                     "entries":[]}
         for value in data:
             unixData["entries"].append(value)
+
+            if value["id"] != 0:
+                sockets_type[value["id"]+1] = "UNIXSK"
 
         unixFile.write(json.dumps(unixData, indent=4, sort_keys=False))
         unixFile.close()
@@ -117,17 +121,17 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         extra_regs = {}
         float_regs = {}
         thread_core = {}
-        pids = {}
+        pids = []
         for thread in task.threads():
             name = thread.comm
-            pids[name] = thread.pid
+            pids.append(thread.pid)
             jRegs = {"fs_base": "{0:#x}".format(thread.thread.fs),
                     "gs_base": "{0:#x}".format(thread.thread.gs),
                     "fs": "{0:#x}".format(thread.thread.fsindex),
                     "gs": "{0:#x}".format(thread.thread.gsindex),
                     "es": "{0:#x}".format(thread.thread.es),
                     "ds": "{0:#x}".format(thread.thread.ds)}
-            extra_regs[name] = jRegs
+            extra_regs[thread.pid] = jRegs
             
             #Reading st_space from memory Byte by Byte
             addr = int(thread.thread.fpu.state.fxsave.__str__())+32
@@ -247,7 +251,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 threadCoreData["creds"]["cap_bnd"].append(int(value, 16))
                 addr+=4
 
-            thread_core[name] = threadCoreData
+            thread_core[thread.pid] = threadCoreData
 
             fpregsData = {"fpregs":{"cwd":int(thread.thread.fpu.state.fxsave.cwd),
                                     "swd":int(thread.thread.fpu.state.fxsave.swd),
@@ -265,14 +269,17 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                             }
                                     }
                         }
-            float_regs[name] = fpregsData
+            float_regs[thread.pid] = fpregsData
         
         #Works only with 64bit registers
+        i = 0
         for task, name, thread_regs in info_regs:
             for thread_name, regs in thread_regs:
                 if regs != None:
-                    print "\tWorking on thread: " + str(pids[thread_name])
-                    fCore = open("core-{0}.json".format(int(str(pids[thread_name]))), "w")
+                    pid = pids[i]
+                    i+=1
+                    print "\tWorking on thread: " + str(pid)
+                    fCore = open("core-{0}.json".format(int(str(pid))), "w")
                     regsData = {"gpregs": {
                                     "r15": "{0:#x}".format(regs["r15"]),
                                     "r14": "{0:#x}".format(regs["r14"]),
@@ -295,14 +302,14 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                     "flags": "{0:#x}".format(regs["eflags"]),
                                     "sp": "{0:#x}".format(regs["rsp"]),
                                     "ss": "{0:#x}".format(regs["ss"]),
-                                    "fs_base": extra_regs[thread_name]["fs_base"],
-                                    "gs_base": extra_regs[thread_name]["gs_base"],
-                                    "ds": extra_regs[thread_name]["ds"],
-                                    "es": extra_regs[thread_name]["es"],
-                                    "fs": extra_regs[thread_name]["fs"],
-                                    "gs": extra_regs[thread_name]["gs"]
+                                    "fs_base": extra_regs[pid]["fs_base"],
+                                    "gs_base": extra_regs[pid]["gs_base"],
+                                    "ds": extra_regs[pid]["ds"],
+                                    "es": extra_regs[pid]["es"],
+                                    "fs": extra_regs[pid]["fs"],
+                                    "gs": extra_regs[pid]["gs"]
                                 },
-                                "fpregs": float_regs[thread_name]["fpregs"],
+                                "fpregs": float_regs[pid]["fpregs"],
                                 "clear_tid_addr": "0x0"
                     }
                     
@@ -351,13 +358,13 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                                 "mtype": "X86_64",
                                                 "thread_info":regsData,
                                                 "tc": tcData,
-                                                "thread_core": thread_core[thread_name]
+                                                "thread_core": thread_core[pid]
                                             }
                                         ]
                                 }
 
 
-                    if int(str(task.pid)) != int(str(pids[thread_name])):
+                    if int(str(task.pid)) != int(str(pid)):
                         fCoreData["entries"][0].pop("tc", None)
                         fCoreData["entries"][0]["thread_core"]["blk_sigset"] = 0
                         
@@ -488,7 +495,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             return dic[current_name]
 
 
-    def dump_fd_info(self, task):
+    def dump_fd_info(self, task, sockets_type):
 
         fdinfoFile = open("fdinfo-2.json", "w")
         entries = []
@@ -500,7 +507,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 element["type"] = "TTY"
             elif "socket:[" in path:
                 element["id"] = fd-1
-                element["type"] = "INETSK"
+                element["type"] = sockets_type[fd]
             else:
                 element["id"] = fd-1
                 element["type"] = "REG"
@@ -659,9 +666,6 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         print "Extracting Files: " 
         self.dumpFile(procFilesExtr, savedTask)
 
-        print "Extracting File Descriptors info"
-        self.dump_fd_info(savedTask)
-
         print "Building PsTree"
         self.buildPsTree(savedTask)
 
@@ -683,11 +687,16 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         print "Searching Signal Handler and sigactions"
         self.dumpSignals(savedTask)
 
+        sockets_type = {}
+
         print "Dumping Sockets"
-        self.dumpSock(savedTask)
+        self.dumpSock(savedTask, sockets_type)
 
         print "Dumping Unix Sockets"
-        self.dumpUnixSock(savedTask)
+        self.dumpUnixSock(savedTask, sockets_type)
+
+        print "Extracting File Descriptors info"
+        self.dump_fd_info(savedTask, sockets_type)
 
         print "Dumping ELF file"
         self.dumpElf(outfd)
