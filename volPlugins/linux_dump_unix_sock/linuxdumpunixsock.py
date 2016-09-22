@@ -118,7 +118,7 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
                                                             "so_no_check": False
 
                                                         },
-                                                "name": base64.b64encode(name.encode('ascii')) + '\n'
+                                                "name": base64.b64encode((name+'\0').encode('ascii')) + '\n'
                                                 }
                         
                         #peer for the socket
@@ -147,7 +147,7 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
                                                                 "so_rcv_tmo_sec":0,
                                                                 "so_rcv_tmo_usec":0
                                                             },
-                                                    "name":base64.b64encode(peer_name.encode('ascii')) + '\n'
+                                                    "name":base64.b64encode((peer_name+'\0').encode('ascii')) + '\n'
                                                     })
 
                             if peer_name != "":
