@@ -96,7 +96,9 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                     "entries":[]}
         for value in data:
             unixData["entries"].append(value)
-            sockets_type[value["id"]+1] = "UNIXSK"
+
+            if value["id"] != 0:
+                sockets_type[value["id"]+1] = "UNIXSK"
 
         unixFile.write(json.dumps(unixData, indent=4, sort_keys=False))
         unixFile.close()

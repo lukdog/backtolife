@@ -43,6 +43,8 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
 
         sockets = []
 
+        peer_ino = 1
+
         addr_space = addr_space_arg
 
         sfop = addr_space.profile.get_symbol("socket_file_ops")
@@ -100,7 +102,7 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
                                                 "flags":"{0:#x}".format(sock_flags),
                                                 "uflags":"0x0",
                                                 "backlog":int(sock_backlog),
-                                                "peer":1,
+                                                "peer":0,
                                                 "opts":{
                                                             "so_sndbuf":int(sock_sndbuf),
                                                             "so_rcvbuf":int(sock_rcvbuf),
@@ -118,12 +120,16 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
                                                             "so_no_check": False
 
                                                         },
-                                                "name": base64.b64encode((name+'\0').encode('ascii')) + '\n'
+                                                "name": ""
                                                 }
-                        
+
+                        if name != "":
+                            element["name"] = base64.b64encode((name+'\0').encode('ascii')) + '\n'
+
                         #peer for the socket
                         if node.peer:
                             peer = node.peer
+                            element["peer"] = peer_ino
                             peerNode = obj.Object("unix_sock", offset=peer.v(), vm=addr_space)
                             if peerNode.addr:
                                 peer_name_obj = obj.Object("sockaddr_un", offset = peerNode.addr.name.obj_offset, vm = addr_space)
@@ -132,7 +138,7 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
                                 peer_name = ""
                             sockets.append({ 
                                                     "id":0,
-                                                    "ino":1,
+                                                    "ino":peer_ino,
                                                     "type":1,
                                                     "state":1,
                                                     "flags":"0x0",
@@ -153,6 +159,8 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
                             if peer_name != "":
                                 self.peers[sock_id] = peer_name
 
+
+                            peer_ino += 1
                         else:
                             element["peer"] = 0
 
