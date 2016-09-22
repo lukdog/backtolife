@@ -61,8 +61,8 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
                         node = obj.Object("unix_sock", offset = inet_sock.sk.v(), vm = addr_space)
                        
 
-                        print "Node: {0:#x}".format(node)
-                        print "Peer: {0:#x}".format(node.peer)
+                        #print "Node: {0:#x}".format(node)
+                        #print "Peer: {0:#x}".format(node.peer)
                         #continue
                         
                         sock_ino = iaddr.i_ino
