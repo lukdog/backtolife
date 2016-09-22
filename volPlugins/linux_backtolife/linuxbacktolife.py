@@ -119,17 +119,17 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         extra_regs = {}
         float_regs = {}
         thread_core = {}
-        pids = {}
+        pids = []
         for thread in task.threads():
             name = thread.comm
-            pids[name] = thread.pid
+            pids.append(thread.pid)
             jRegs = {"fs_base": "{0:#x}".format(thread.thread.fs),
                     "gs_base": "{0:#x}".format(thread.thread.gs),
                     "fs": "{0:#x}".format(thread.thread.fsindex),
                     "gs": "{0:#x}".format(thread.thread.gsindex),
                     "es": "{0:#x}".format(thread.thread.es),
                     "ds": "{0:#x}".format(thread.thread.ds)}
-            extra_regs[name] = jRegs
+            extra_regs[thread.pid] = jRegs
             
             #Reading st_space from memory Byte by Byte
             addr = int(thread.thread.fpu.state.fxsave.__str__())+32
@@ -249,7 +249,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 threadCoreData["creds"]["cap_bnd"].append(int(value, 16))
                 addr+=4
 
-            thread_core[name] = threadCoreData
+            thread_core[thread.pid] = threadCoreData
 
             fpregsData = {"fpregs":{"cwd":int(thread.thread.fpu.state.fxsave.cwd),
                                     "swd":int(thread.thread.fpu.state.fxsave.swd),
@@ -267,14 +267,17 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                             }
                                     }
                         }
-            float_regs[name] = fpregsData
+            float_regs[thread.pid] = fpregsData
         
         #Works only with 64bit registers
+        i = 0
         for task, name, thread_regs in info_regs:
             for thread_name, regs in thread_regs:
                 if regs != None:
-                    print "\tWorking on thread: " + str(pids[thread_name])
-                    fCore = open("core-{0}.json".format(int(str(pids[thread_name]))), "w")
+                    pid = pids[i]
+                    i+=1
+                    print "\tWorking on thread: " + str(pid)
+                    fCore = open("core-{0}.json".format(int(str(pid))), "w")
                     regsData = {"gpregs": {
                                     "r15": "{0:#x}".format(regs["r15"]),
                                     "r14": "{0:#x}".format(regs["r14"]),
@@ -297,14 +300,14 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                     "flags": "{0:#x}".format(regs["eflags"]),
                                     "sp": "{0:#x}".format(regs["rsp"]),
                                     "ss": "{0:#x}".format(regs["ss"]),
-                                    "fs_base": extra_regs[thread_name]["fs_base"],
-                                    "gs_base": extra_regs[thread_name]["gs_base"],
-                                    "ds": extra_regs[thread_name]["ds"],
-                                    "es": extra_regs[thread_name]["es"],
-                                    "fs": extra_regs[thread_name]["fs"],
-                                    "gs": extra_regs[thread_name]["gs"]
+                                    "fs_base": extra_regs[pid]["fs_base"],
+                                    "gs_base": extra_regs[pid]["gs_base"],
+                                    "ds": extra_regs[pid]["ds"],
+                                    "es": extra_regs[pid]["es"],
+                                    "fs": extra_regs[pid]["fs"],
+                                    "gs": extra_regs[pid]["gs"]
                                 },
-                                "fpregs": float_regs[thread_name]["fpregs"],
+                                "fpregs": float_regs[pid]["fpregs"],
                                 "clear_tid_addr": "0x0"
                     }
                     
@@ -353,13 +356,13 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                                 "mtype": "X86_64",
                                                 "thread_info":regsData,
                                                 "tc": tcData,
-                                                "thread_core": thread_core[thread_name]
+                                                "thread_core": thread_core[pid]
                                             }
                                         ]
                                 }
 
 
-                    if int(str(task.pid)) != int(str(pids[thread_name])):
+                    if int(str(task.pid)) != int(str(pid)):
                         fCoreData["entries"][0].pop("tc", None)
                         fCoreData["entries"][0]["thread_core"]["blk_sigset"] = 0
                         
