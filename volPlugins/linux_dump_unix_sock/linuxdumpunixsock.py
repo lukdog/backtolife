@@ -61,8 +61,8 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
                         node = obj.Object("unix_sock", offset = inet_sock.sk.v(), vm = addr_space)
                        
 
-                        #print "Node: {0:#x}".format(node)
-                        #print "Peer: {0:#x}".format(node.peer)
+                        print "Node: {0:#x}".format(node)
+                        print "Peer: {0:#x}".format(node.peer)
                         #continue
                         
                         sock_ino = iaddr.i_ino
@@ -92,7 +92,7 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
                         sock_flags = filp.f_flags
                         sock_id = fdnum -1
 
-                        sockets.append({ 
+                        element = { 
                                                 "id":int(sock_id),
                                                 "ino":int(sock_ino),
                                                 "type":int(sock_type),
@@ -119,38 +119,46 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
 
                                                         },
                                                 "name": base64.b64encode(name.encode('ascii')) + '\n'
-                                                })
+                                                }
                         
                         #peer for the socket
-                        peer = node.peer
-                        peerNode = obj.Object("unix_sock", offset=peer.v(), vm=addr_space)
-                        if peerNode.addr:
-                            peer_name_obj = obj.Object("sockaddr_un", offset = peerNode.addr.name.obj_offset, vm = addr_space)
-                            peer_name   = str(peer_name_obj.sun_path)
-                        else:
-                            peer_name = ""
-                        sockets.append({ 
-                                                "id":0,
-                                                "ino":1,
-                                                "type":1,
-                                                "state":1,
-                                                "flags":"0x0",
-                                                "uflags":"0x1",
-                                                "backlog":0,
-                                                "peer":0,
-                                                "opts":{
-                                                            "so_sndbuf":0,
-                                                            "so_rcvbuf":0,
-                                                            "so_snd_tmo_sec":0,
-                                                            "so_snd_tmo_usec":0,
-                                                            "so_rcv_tmo_sec":0,
-                                                            "so_rcv_tmo_usec":0
-                                                        },
-                                                "name":base64.b64encode(peer_name.encode('ascii')) + '\n'
-                                                })
+                        if node.peer:
+                            peer = node.peer
+                            peerNode = obj.Object("unix_sock", offset=peer.v(), vm=addr_space)
+                            if peerNode.addr:
+                                peer_name_obj = obj.Object("sockaddr_un", offset = peerNode.addr.name.obj_offset, vm = addr_space)
+                                peer_name   = str(peer_name_obj.sun_path)
+                            else:
+                                peer_name = ""
+                            sockets.append({ 
+                                                    "id":0,
+                                                    "ino":1,
+                                                    "type":1,
+                                                    "state":1,
+                                                    "flags":"0x0",
+                                                    "uflags":"0x1",
+                                                    "backlog":0,
+                                                    "peer":0,
+                                                    "opts":{
+                                                                "so_sndbuf":0,
+                                                                "so_rcvbuf":0,
+                                                                "so_snd_tmo_sec":0,
+                                                                "so_snd_tmo_usec":0,
+                                                                "so_rcv_tmo_sec":0,
+                                                                "so_rcv_tmo_usec":0
+                                                            },
+                                                    "name":base64.b64encode(peer_name.encode('ascii')) + '\n'
+                                                    })
 
-                        if peer_name != "":
-                            self.peers[sock_id] = peer_name
+                            if peer_name != "":
+                                self.peers[sock_id] = peer_name
+
+                        else:
+                            element["peer"] = 0
+
+                        sockets.append(element)
+
+                        
 
         return sockets
                         
@@ -159,11 +167,16 @@ class linux_dump_unix_sock(linux_pslist.linux_pslist):
         for task in data:
             sock = self.get_sock_info(self.addr_space, task)
             print "Unix Socket for process with pid: " + self._config.PID
-            self.table_header(outfd, [("INode", "10"), ("FD",   "6"), ("State", "6"), ("Unix Socket Name", "")])
+            self.table_header(outfd, [("INode", "10"), ("FD",   "6"), ("State", "6"), ("Connection", "13"), ("Unix Socket Name", "")])
             for val in sock:
                if val["id"] != 0:
 
-                    if val["name"] == '\n' and val["id"] in self.peers:
-                        self.table_row(outfd, val["ino"], val["id"]+1, val["state"], self.peers[val["id"]].split('\n')[0])
+                    if val["peer"] != 0:
+                        state = "CONNECTED"
                     else:
-                        self.table_row(outfd, val["ino"], val["id"]+1, val["state"], base64.b64decode(val["name"].split('\n')[0]))
+                        state = "NOT CONNECTED"
+
+                    if val["name"] == '\n' and val["id"] in self.peers:
+                        self.table_row(outfd, val["ino"], val["id"]+1, val["state"], state, self.peers[val["id"]].split('\n')[0])
+                    else:
+                        self.table_row(outfd, val["ino"], val["id"]+1, val["state"], state, base64.b64decode(val["name"].split('\n')[0]))
