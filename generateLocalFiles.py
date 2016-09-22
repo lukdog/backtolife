@@ -4,6 +4,7 @@ import json
 import termios
 import re
 from stat import *
+import base64
 
 #generate regFiles ,  FdInfo , fs
 PATH = os.getcwd()
@@ -271,6 +272,58 @@ inputFileinetsk = open(PATH+ "/inetsk.json","w")
 inputFileinetsk.write(json.dumps(inetJson,indent=4, sort_keys = False))
 inputFileinetsk.close()
 
+# append fown and file perms in unixsk.json
+inputFileunixsk = open(PATH+ "/unixsk.json","r")
+inetstr = inputFileunixsk.read()
+inetJson = json.loads(inetstr)
+for d in inetJson["entries"]:
+    d["fown"] = fownJsonZero
+    if d["name"] != "\n":
+    	d["file_perms"] = {"mode":49645, "uid":0, "gid":0}
+
+#we remove pairs ino->peer in order to start again the server with no open connections
+arr_delete = []
+fd_delete =[]
+for d in inetJson["entries"]:
+	if d["uflags"]=="0x0" and d["name"] != "" and d["peer"]!= 0 :
+		arr_delete.append(d["ino"])
+		arr_delete.append(d["peer"])
+		fd_delete.append(int(d["id"])+1)
+
+
+newinetJson = []
+for d in inetJson["entries"]:
+	if d["ino"] not in arr_delete:
+		newinetJson.append(d)
+inetJson["entries"]= newinetJson
+
+inputFileunixsk.close()
+
+
+inputFileunixsk = open(PATH+ "/unixsk.json","w")
+inputFileunixsk.write(json.dumps(inetJson,indent=4, sort_keys = False))
+inputFileunixsk.close()
+
+
+#remove fd unixsk opened connection
+fdinfoFile = open(PATH+ "/fdinfo-2.json","r")
+fdinfostr = fdinfoFile.read()
+fdinfoJson = json.loads(fdinfostr)
+fdinfoFile.close()
+newfdJson = []
+for d in fdinfoJson["entries"]:
+	if d["type"]=="UNIXSK" and d["fd"] in fd_delete:
+		continue
+	else:
+		newfdJson.append(d)
+fdinfoJson["entries"]=newfdJson
+
+
+
+
+fdinfoFile = open(PATH+ "/fdinfo-2.json","w")
+fdinfoFile.write(json.dumps(fdinfoJson,indent=4, sort_keys = False))
+fdinfoFile.close()
 
 
 
