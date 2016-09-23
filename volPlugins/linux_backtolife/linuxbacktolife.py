@@ -258,7 +258,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                                     "twd":int(thread.thread.fpu.state.fxsave.twd),
                                     "fop":int(thread.thread.fpu.state.fxsave.fop),
                                     "rip":int(thread.thread.fpu.state.fxsave.rip),
-                                    "rdp":int(thread.thread.fpu.state.fxsave.rdp),
+                                    "rdp":0,#int(thread.thread.fpu.state.fxsave.rdp),
                                     "mxcsr":int(thread.thread.fpu.state.fxsave.mxcsr),
                                     "mxcsr_mask":int(thread.thread.fpu.state.fxsave.mxcsr_mask),
                                     "st_space":st_space_vect, #Bytes from memory
@@ -486,6 +486,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 if fd > maxFd and "/dev/pts/" not in linux_common.get_path(task, filp):
                     maxFd = fd
             
+            print maxFd
             dic[progname] = maxFd
 
         if current_name in dic:
