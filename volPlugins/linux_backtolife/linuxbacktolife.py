@@ -42,7 +42,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 
     
         for name, inode_addr in listF.iteritems():
-            inode = obj.Object("inode", offset = int(inode_addr, 0), vm = self.addr_spacet)
+            inode = obj.Object("inode", offset = int(inode_addr, 0), vm = self.addr_space)
             try: 
                 f = open(name, "wb")
             except IOError, e:
