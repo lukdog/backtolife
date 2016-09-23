@@ -486,11 +486,14 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
                 if fd > maxFd and "/dev/pts/" not in linux_common.get_path(task, filp):
                     maxFd = fd
             
-            print maxFd
+
             dic[progname] = maxFd
 
+
         if current_name in dic:
+
             return dic[current_name]
+
         else:
             dic[current_name] = len(dic) + dic[progname]
             return dic[current_name]
@@ -569,7 +572,8 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
             savedTask = task
             (fname, major, minor, ino, pgoff) = vma.info(task)
             vmas.append(vma)
-            if "[" not in fname and ".so" not in fname and ino != 0:
+		#create heuristic for obtaining progname
+            if "[" not in fname and ".so" not in fname and ino != 0 and ".cache" not in fname: 
                 progName = fname
 
 
