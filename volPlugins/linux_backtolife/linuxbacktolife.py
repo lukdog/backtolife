@@ -64,7 +64,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
     
     #Method for dumping sockets info relative to this process
     def dumpSock(self, task, sockets_type):
-        data = linux_dump_sock.linux_dump_sock(self._config).get_sock_info(task)
+        data = linux_dump_sock.linux_dump_sock(self._config).get_sock_info(task, self.addr_space)
         inetFile = open("inetsk.json", "w")
         inetData = {"magic":"INETSK", 
                     "entries":[]}

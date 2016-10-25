@@ -11,6 +11,7 @@
 
 import socket
 import volatility.obj as obj
+import base64
 import volatility.plugins.linux.common as linux_common
 import volatility.plugins.linux.lsof as linux_lsof
 import volatility.plugins.linux.pslist as linux_pslist
@@ -64,8 +65,25 @@ class linux_dump_sock(linux_pslist.linux_pslist):
         return options
 
 
+    def read_queue(self, queue, addrspace):
+        sk_buff = queue.m("next")
 
-    def get_sock_info(self, task):
+        queueData = ""
+        wrote = 0
+        while sk_buff and sk_buff != queue.v():
+
+            pkt_len = sk_buff.len
+            if pkt_len > 0 and pkt_len != 0xffffffff:
+                start = sk_buff.data
+                data  = addrspace.zread(start, pkt_len)
+                queueData += data
+                wrote += pkt_len
+
+            sk_buff = sk_buff.next
+
+        return queueData
+
+    def get_sock_info(self, task, addrspace):
 
         sockets_dic = {}
         sockets = []
@@ -164,6 +182,12 @@ class linux_dump_sock(linux_pslist.linux_pslist):
                         tcp_outq_seq = tcp_sock.write_seq
                         tcp_unsq_len = 0 #Not Found
                         tcp_timestamp = 0 #Not Found
+                        
+                        #Reading receive and write queues
+                        #Is not useful because it's impossible to restore a transfer
+                        #receiveQueue = self.read_queue(node.sk.sk_receive_queue, addrspace)
+                        #writeQueue = self.read_queue(node.sk.sk_write_queue, addrspace)
+
                         tcp_stream_data = {
                                             "inq_len":int(tcp_inq_len),
                                             "inq_seq":int(tcp_inq_seq),
@@ -176,6 +200,8 @@ class linux_dump_sock(linux_pslist.linux_pslist):
                                             "timestamp":int(tcp_timestamp),
                                             "unsq_len":int(tcp_unsq_len),
                                             "extra":{"outq":"", "inq":""}
+                                            #"extra":{"outq":base64.b64encode(str(writeQueue).encode('ascii')), "inq":base64.b64encode(str(receiveQueue).encode('ascii'))}
+
                                             }
                         sockets_dic[sock_ino]["tcp_stream"] = tcp_stream_data
 
@@ -188,7 +214,7 @@ class linux_dump_sock(linux_pslist.linux_pslist):
     def render_text(self, outfd, data):
         
         for task in data:
-            dic = self.get_sock_info(task)
+            dic = self.get_sock_info(task, self.addr_space)
 
             for key, val in dic.iteritems():
                 print val
