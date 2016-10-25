@@ -72,7 +72,7 @@ if __name__ == "__main__":
         conn = {}
         out = ""
         #print("lsof -p " + str(c.pid) + " | grep unix")
-        for i in os.popen("lsof -p " + str(pid) + " | grep unix").read():
+        for i in os.popen("lsof -e /run/user/1000/gvfs -p " + str(pid) + " | grep unix").read():
             out += i
 
         out = out.strip()
