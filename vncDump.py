@@ -13,21 +13,30 @@ if __name__ == "__main__":
 
     firefox_to_xvnc = ""
     xvnc_to_firefox = ""
+    
     socat_to_python = ""
     python_to_socat = ""
+    
     python_to_xvnc = ""
     xvnc_to_python = ""
+    
+    firefox_window_to_xvnc = ""
+    xvnc_to_firefox_window = ""
+    
     id_xvnc = ""
     id_socat = ""
+    id_firefox_window = ""
+    id_xvnc_firefox = ""
     ext_sock = ""
 
-    warnings.simplefilter('ignore', RuntimeWarning)
-    if len(sys.argv) != 2:
-        print "Type Progname root_pid"
-        exit(1)
+    #Root pid
 
-    #Get Root process from PID
-    root_pid = sys.argv[1]
+    out = ""
+    for i in os.popen("ps -le | grep vnc_server.sh").read():
+        out += i
+
+    line = re.sub(' +', ' ', out)
+    root_pid = line.split(' ')[3]
 
     out = ""
     for i in os.popen("sudo /BackToLifeTools/processTree.py " + root_pid).read():
@@ -67,6 +76,16 @@ if __name__ == "__main__":
             else:
                 xvnc_to_python = newl[3]
                 python_to_xvnc = newl[0]
+        elif "Xvnc" in line and "filezilla" in line:
+            newl = re.sub(' +', ' ', line)
+            newl = newl.split(" ")
+
+            if newl[1] == "Xvnc":
+                xvnc_to_firefox_window = newl[0]
+                firefox_window_to_xvnc = newl[3]
+            else:
+                xvnc_to_firefox_window = newl[3]
+                firefox_window_to_xvnc = newl[0]
         elif "EXTERNAL" in line:
             newl = re.sub(' +', ' ', line)
             newl = newl.split(" ")
@@ -75,6 +94,8 @@ if __name__ == "__main__":
     os.system("sudo /CRIU/criu/criu/criu dump -t {0} --tcp-established --file-locks --ext-unix-sk={1} && sudo cp /home/lukdog/psDump/newns.log .".format(root_pid, ext_sock))
     os.system("sudo chmod 777 *")
     os.system("/BackToLifeTools/convertImgJson.sh")
+    os.system("rm -rf ../Backup_Firefox")
+    os.system("mkdir ../Backup_Firefox && cp * ../Backup_Firefox/")
 
     #Read Unixsk file
     newEntries = []
@@ -90,23 +111,125 @@ if __name__ == "__main__":
         elif str(el["ino"]) == python_to_socat:
             el["peer"] = int(firefox_to_xvnc)
         elif str(el["ino"]) == python_to_xvnc:
-            el["peer"] = int(xvnc_to_firefox)
-        elif str(el["ino"]) == xvnc_to_firefox:
+            el["peer"] = int(xvnc_to_firefox_window)
+        elif str(el["ino"]) == xvnc_to_firefox_window:
             el["peer"] = int(python_to_xvnc)
         elif str(el["ino"]) == xvnc_to_python:
-            id_socat = el["id"]
+            id_xvnc = el["id"]
             continue
         elif str(el["ino"]) == socat_to_python:
-            id_xvnc = el["id"]
+            id_socat = el["id"]
+            continue
+        elif str(el["ino"]) == xvnc_to_firefox:
+            id_xvnc_firefox = el["id"]
+            continue
+        elif str(el["ino"]) == firefox_window_to_xvnc:
+            id_firefox_window = el["id"]
             continue 
 
         newEntries.append(el)
 
     unix_j["entries"] = newEntries
     unixsk = open("unixsk.json", "w")
-    unixsk.write(json.dumps(unix_j, indent=4, sort_keys=False))
+    unixsk.write(json.dumps(unix_j, indent=4, sort_keys=True))
     unixsk.close()
     os.system("crit encode -i unixsk.json -o unixsk.img")
 
     print "id_socat: " + str(id_socat)
-    print "id_xvnc: " + str(id_xvnc)    
+    print "id_xvnc: " + str(id_xvnc) 
+    print "id_xvnc_firefox: " + str(id_xvnc_firefox)
+    print "id_firefox_window: " + str(id_firefox_window)
+
+    out = ""
+    for i in os.popen("sudo grep -r \"{0}\" | grep fdinfo".format("\\\"id\\\": "+ str(id_socat) +",")).read():
+        out += i
+
+    filename = out.split(':')[0]
+    name = filename.split('.')[0]
+    fdinfo = open(filename, "r")
+    fdinfo_j = json.loads(fdinfo.read())
+    fdinfo.close()
+    entries = fdinfo_j["entries"]
+    newEntries = []
+    for e in entries:
+        if e["id"] != id_socat:
+            newEntries.append(e)
+
+    fdinfo_j["entries"] = newEntries
+    fdinfo = open(filename, "w")
+    fdinfo.write(json.dumps(fdinfo_j, indent=4, sort_keys=True))
+    fdinfo.close()
+
+    os.system("crit encode -i {0}.json -o {1}.img".format(name, name))
+
+    out = ""
+    for i in os.popen("sudo grep -r \"{0}\" | grep fdinfo".format("\\\"id\\\": "+ str(id_xvnc) +",")).read():
+        out += i
+
+    filename = out.split(':')[0]
+    name = filename.split('.')[0]
+    fdinfo = open(filename, "r")
+    fdinfo_j = json.loads(fdinfo.read())
+    fdinfo.close()
+    entries = fdinfo_j["entries"]
+    newEntries = []
+    for e in entries:
+        if e["id"] != id_xvnc:
+            newEntries.append(e)
+
+    fdinfo_j["entries"] = newEntries
+    fdinfo = open(filename, "w")
+    fdinfo.write(json.dumps(fdinfo_j, indent=4, sort_keys=True))
+    fdinfo.close()
+
+    os.system("crit encode -i {0}.json -o {1}.img".format(name, name))
+
+    out = ""
+    for i in os.popen("sudo grep -r \"{0}\" | grep fdinfo".format("\\\"id\\\": "+ str(id_xvnc_firefox) +",")).read():
+        out += i
+
+    filename = out.split(':')[0]
+    name = filename.split('.')[0]
+    fdinfo = open(filename, "r")
+    fdinfo_j = json.loads(fdinfo.read())
+    fdinfo.close()
+    entries = fdinfo_j["entries"]
+    newEntries = []
+    for e in entries:
+        if e["id"] != id_xvnc_firefox:
+            newEntries.append(e)
+
+    fdinfo_j["entries"] = newEntries
+    fdinfo = open(filename, "w")
+    fdinfo.write(json.dumps(fdinfo_j, indent=4, sort_keys=True))
+    fdinfo.close()
+
+    os.system("crit encode -i {0}.json -o {1}.img".format(name, name))
+
+    out = ""
+    for i in os.popen("sudo grep -r \"{0}\" | grep fdinfo".format("\\\"id\\\": "+ str(id_firefox_window) +",")).read():
+        out += i
+
+    filename = out.split(':')[0]
+    name = filename.split('.')[0]
+    fdinfo = open(filename, "r")
+    fdinfo_j = json.loads(fdinfo.read())
+    fdinfo.close()
+    entries = fdinfo_j["entries"]
+    newEntries = []
+    for e in entries:
+        if e["id"] != id_firefox_window:
+            newEntries.append(e)
+
+    fdinfo_j["entries"] = newEntries
+    fdinfo = open(filename, "w")
+    fdinfo.write(json.dumps(fdinfo_j, indent=4, sort_keys=True))
+    fdinfo.close()
+
+    os.system("crit encode -i {0}.json -o {1}.img".format(name, name))
+
+
+    #print "Modified files: " + name_2 + " " + name_1
+
+    os.system("sudo /CRIU/criu/criu/criu restore --tcp-established -x")
+    os.system("vncviewer localhost:25")

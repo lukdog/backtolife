@@ -3,98 +3,52 @@
 import socket
 import sys
 import os
-import struct
 from threading import Thread
+import struct
 
 PATH_XORG="/tmp/.X11-unix/X25"
 server_address = '/tmp/.forwarder'
 
 
-def threaded_function(src, dst, srcName):
+def threaded_function(src, dst, toFind, toModify, toFindChild, toModifyChild):
 
-    counter = 0
     base = 0
-    mask = 0xFFFFFFFF
-    unpackMask = 0xFFFFFFFFFF
-    #src.settimeout(0.2)
-    old = 0
+    mask = 4294967295
+
     while True:
-            #print counter
-            #print "{0:#012x}".format(base)
-            try:
-                data = (src).recv(1)
-                for i in range(0,4009000):
-                    continue
+            data = (src).recv(4096)
+            print "Len: " + str(len(data))
+
+            if toFind in data or toFindChild in data:
+
+                tofindB = False
+                tofindchildB = False
+                startI = 0
+                startIchild = 0
+
+                if toFind in data:
+                    startI = data.index(toFind)
+                    tofindB = True
+                    print "Trovato in pos: " + str(startI)
+
+                if toFindChild in data:
+                    startIchild = data.index(toFindChild)
+                    tofindchildB = True
+                    print "Trovato child in pos: " + str(startI)
+
+
+                for i in range(0, len(data)):
+                    if i in range(startI, startI+4) and tofindB:
+                        tosend = toModify[i-startI]
+                        dst.sendall(tosend)
+                    elif i in range(startIchild, startIchild+4) and tofindchildB:
+                        tosend = toModifyChild[i-startIchild]
+                        dst.sendall(tosend)
+                    else:
+                        dst.sendall(data[i])
+            
+            else:
                 dst.sendall(data)
-
-
-                #Prendiamo Blocchi da 4096
-                #Convertiamo con pack la stringa da cercare
-                #Facciamo if in per verificare
-                #problema se sovrapposto tra due blocchi
-
-                # #Prova ufficiale del garage
-                # if counter == 0:
-                #     old = data
-                #     counter +=1
-                # else:
-                #     tosend = old
-                #     old = data
-                #     dst.sendall(tosend)
-
-            except:
-
-                # if counter == 0:
-                #     continue
-
-                # counter = 0
-                # tosend = old
-                # dst.sendall(tosend)
-                # old = 0
-
-                continue
-
-            #     print "{0} : recv timeout - buff:{1:#012x}".format(srcName, base)
-            #     if counter < 5:
-            #         base = base << (8*(5-counter))
-
-            #     for i in range(0, counter):
-            #         base = base & unpackMask
-            #         toSend = struct.pack('<Q', base)[4]
-            #         print "{1} : {0:#04x}".format(struct.unpack('B', toSend)[0], srcName)
-            #         dst.sendall(toSend)
-            #         base = base<<8
-            #     counter = 0
-            #     base = 0
-            #     continue
-
-            
-            # #print >>sys.stderr, 'received "%s"' % data
-            # try:
-            #     byte = struct.unpack('B', data)[0]
-            # except:
-            #     continue
-                
-            # base = ((base<<8)|int(byte))
-            # counter += 1
-
-            # if counter < 4:
-            #     continue
-
-            # #if "{0:#010x}".format((base & mask)) == "0x640a650a":
-            #     #base = base & 0xFF00000000
-            #     #base = base | 0x67686970
-
-
-            # if counter < 5:
-            #     continue
-
-            # base = base & unpackMask
-            # toSend = struct.pack('<Q', base)[4]
-            # print "{1} : {0:#04x}".format(struct.unpack('B', toSend)[0], srcName)
-            # dst.sendall(toSend)
-            # counter -=1
-            
 
 # Make sure the socket does not already exist
 try:
@@ -120,24 +74,21 @@ while True:
     xorg = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     xorg.connect(PATH_XORG)
 
-    print type(xorg)
 
-    thread = Thread(target = threaded_function, args = (connection, xorg, "Firefox"))
+    #Id for window of restored client
+    windowIdCLient = 0x1800054
+    windowId = struct.pack('<Q', windowIdCLient)
+    windowIdClientChild = 0x1800055
+    windowChild= struct.pack('<Q', windowIdClientChild)
+
+    #Id X server side
+    windowIdServer = 0x8001ee
+    windowIdS = struct.pack('<Q', windowIdServer)
+    windowIdServerChild = 0x8001ef
+    windowChildS = struct.pack('<Q', windowIdServerChild)
+
+    thread = Thread(target = threaded_function, args = (connection, xorg, windowId, windowIdS, windowChild, windowChildS))
     thread.start()
     
-    threaded_function(xorg, connection, "Xvnc")
+    threaded_function(xorg, connection, windowIdS, windowId, windowChildS, windowChild)
             
-# #Create UDS socket for Xorg
-# xorg = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-# try:
-# #    ice.connect(PATH_ICE)
-#     xorg.connect(PATH_XORG)
-# except socket.error, msg:
-#     print "Exception connecting"
-#     sys.exit(1)
-
-# print "Connection Established"
-# #a = raw_input()
-
-# fileno = xorg.fileno()
-# os.system("criu restore -D /root/vi -j -x --inherit-fd=fd[" + str(fileno) + "]:socket:[22926]")
