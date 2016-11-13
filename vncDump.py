@@ -7,6 +7,12 @@ import re
 import pygraphviz as pgv
 import warnings
 import json
+from threading import Thread
+import time
+
+
+def openCriu():
+    os.system("sudo /CRIU/criu/criu/criu restore --tcp-established -x")
 
 if __name__ == "__main__":
 
@@ -95,7 +101,13 @@ if __name__ == "__main__":
     os.system("sudo chmod 777 *")
     os.system("/BackToLifeTools/convertImgJson.sh")
     os.system("rm -rf ../Backup_Firefox")
+    os.system("rm -rf ../firefox_v2")
+    os.system("mkdir ../firefox_v2 && cp * ../firefox_v2/")
     os.system("mkdir ../Backup_Firefox && cp * ../Backup_Firefox/")
+
+
+
+    ### GENERAZIONE FILE PER LA VERSIONE 1 - FIREFOX->FORWARDER->XVNC(SOCKET_FILEZILLA)
 
     #Read Unixsk file
     newEntries = []
@@ -229,7 +241,98 @@ if __name__ == "__main__":
     os.system("crit encode -i {0}.json -o {1}.img".format(name, name))
 
 
-    #print "Modified files: " + name_2 + " " + name_1
+    ### GENERAZIONE FILE PER LA VERSIONE 2 - FIREFOX->FORWARDER->XVNC(SOCKET_FIREFOX)
+    os.chdir("../firefox_v2")
+    #Read Unixsk file
+    newEntries = []
 
-    os.system("sudo /CRIU/criu/criu/criu restore --tcp-established -x")
-    os.system("vncviewer localhost:25")
+    unixsk = open("unixsk.json", "r")
+    unix_j = json.loads(unixsk.read())
+    unixsk.close()
+    entries = unix_j["entries"]
+
+    for el in entries:
+        if str(el["ino"]) == firefox_to_xvnc:
+            el["peer"] = int(python_to_socat)
+        elif str(el["ino"]) == python_to_socat:
+            el["peer"] = int(firefox_to_xvnc)
+        elif str(el["ino"]) == python_to_xvnc:
+            el["peer"] = int(xvnc_to_firefox)
+        elif str(el["ino"]) == xvnc_to_firefox:
+            el["peer"] = int(python_to_xvnc)
+        elif str(el["ino"]) == xvnc_to_python:
+            id_xvnc = el["id"]
+            continue
+        elif str(el["ino"]) == socat_to_python:
+            id_socat = el["id"]
+            continue
+        # elif str(el["ino"]) == xvnc_to_firefox:
+        #     id_xvnc_firefox = el["id"]
+        #     continue
+        # elif str(el["ino"]) == firefox_window_to_xvnc:
+        #     id_firefox_window = el["id"]
+        #     continue 
+
+        newEntries.append(el)
+
+    unix_j["entries"] = newEntries
+    unixsk = open("unixsk.json", "w")
+    unixsk.write(json.dumps(unix_j, indent=4, sort_keys=True))
+    unixsk.close()
+    os.system("crit encode -i unixsk.json -o unixsk.img")
+
+    print "id_socat: " + str(id_socat)
+    print "id_xvnc: " + str(id_xvnc) 
+    # print "id_xvnc_firefox: " + str(id_xvnc_firefox)
+    # print "id_firefox_window: " + str(id_firefox_window)
+
+    out = ""
+    for i in os.popen("sudo grep -r \"{0}\" | grep fdinfo".format("\\\"id\\\": "+ str(id_socat) +",")).read():
+        out += i
+
+    filename = out.split(':')[0]
+    name = filename.split('.')[0]
+    fdinfo = open(filename, "r")
+    fdinfo_j = json.loads(fdinfo.read())
+    fdinfo.close()
+    entries = fdinfo_j["entries"]
+    newEntries = []
+    for e in entries:
+        if e["id"] != id_socat:
+            newEntries.append(e)
+
+    fdinfo_j["entries"] = newEntries
+    fdinfo = open(filename, "w")
+    fdinfo.write(json.dumps(fdinfo_j, indent=4, sort_keys=True))
+    fdinfo.close()
+
+    os.system("crit encode -i {0}.json -o {1}.img".format(name, name))
+
+    out = ""
+    for i in os.popen("sudo grep -r \"{0}\" | grep fdinfo".format("\\\"id\\\": "+ str(id_xvnc) +",")).read():
+        out += i
+
+    filename = out.split(':')[0]
+    name = filename.split('.')[0]
+    fdinfo = open(filename, "r")
+    fdinfo_j = json.loads(fdinfo.read())
+    fdinfo.close()
+    entries = fdinfo_j["entries"]
+    newEntries = []
+    for e in entries:
+        if e["id"] != id_xvnc:
+            newEntries.append(e)
+
+    fdinfo_j["entries"] = newEntries
+    fdinfo = open(filename, "w")
+    fdinfo.write(json.dumps(fdinfo_j, indent=4, sort_keys=True))
+    fdinfo.close()
+
+    os.system("crit encode -i {0}.json -o {1}.img".format(name, name))
+
+    #print "Modified files: " + name_2 + " " + name_1
+    #thread = Thread(target = openCriu)
+    #thread.start()
+    #time.sleep(10)
+    #os.system("vncviewer localhost:25")
+    #thread.join()
