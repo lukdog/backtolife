@@ -1,7 +1,7 @@
 """
 @author: Luca Doglione, Marco Senno
-@license: 
-@contact: 
+@license: GNU General Public Licens 2.0
+@contact: doglione.luca@gmail.com, senno.marco@gmail.com
 """
 
 import volatility.obj as obj
@@ -10,6 +10,35 @@ import volatility.plugins.linux.lsof as linux_lsof
 import volatility.plugins.linux.pslist as linux_pslist
 from volatility.renderers import TreeGrid
 from volatility.renderers.basic import Address
+
+auxv = {
+    0: "AT_NULL",
+    1: "AT_IGNORE",
+    2: "AT_EXECFD",
+    3: "AT_PHDR",
+    4: "AT_PHENT",
+    5: "AT_PHNUM",
+    6: "AT_PAGESZ",
+    7: "AT_BASE",
+    8: "AT_FLAGS",
+    9: "AT_ENTRY",
+    10: "AT_NOTELF",
+    11: "AT_UID",
+    12: "AT_EUID",
+    13: "AT_GID",
+    14: "AT_EGID",
+    15: "AT_PLATFORM",
+    16: "AT_HWCAP",
+    17: "AT_CLKTCK",
+    23: "AT_SECURE",
+    24: "AT_BASE_PLATFORM",
+    25: "AT_RANDOM",
+    26: "AT_HWCAP2",
+    31: "AT_EXECFN",
+    32: "AT_SYSINFO",
+    33: "AT_SYSINFO_EHDR"    
+}
+
 
 class linux_dump_auxv(linux_pslist.linux_pslist):
     """Read Auxiliary Vector of a process"""
@@ -38,9 +67,10 @@ class linux_dump_auxv(linux_pslist.linux_pslist):
     def read_auxv(self, task):
         mm = task.mm
         saved_auxv = []
+        #Addr is the pointer to auxv[0]
         addr = int(mm.__str__()) + 320
         ymmh_space_vect = []
-        for i in range(0, 38):
+        for i in range(0, 46):
             reverse = []
             dataByte = self.read_addr_range(task, addr, 8)
             for c in dataByte:
@@ -57,12 +87,20 @@ class linux_dump_auxv(linux_pslist.linux_pslist):
 
     def render_text(self, outfd, data):
         
+        global auxv
+
         for task in data:
 
             print "Auxiliary Vector for process: {0}".format(self._config.PID)
             aux = self.read_auxv(task)
-            self.table_header(outfd, [("Key", "10"), ("Value", "#018x")])
+            self.table_header(outfd, [("Key", "16"), ("Value", "#018x")])
 
-            for i in range(0, 38, 2):
-                self.table_row(outfd, aux[i], aux[i+1])
+            for i in range(0, 46, 2):
+                key = aux[i]
+                value = aux[i + 1]
+
+                self.table_row(outfd, auxv[key], value)
+
+                if key == 0:
+                    break
             

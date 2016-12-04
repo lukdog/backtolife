@@ -207,10 +207,6 @@ class linux_dump_sock(linux_pslist.linux_pslist):
 
         return sockets_dic
 
-                #elif ents[0] == 1 and not self._config.IGNORE_UNIX:
-                 #   (name, inum) = ents[1]
-                  #  outfd.write("UNIX {0:<8d} {1:>17s}/{2:<5d} {3:s}\n".format(inum, task.comm, task.pid, name)).sk.sk_rcvbuf
-
     def render_text(self, outfd, data):
         
         for task in data:
