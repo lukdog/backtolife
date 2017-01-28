@@ -646,7 +646,7 @@ class linux_backtolife(linux_proc_maps.linux_proc_maps):
         
         #Reading Auxilary Vector
         print "Reading Auxiliary Vector"
-        saved_auxv = linux_dump_auxv.linux_dump_auxv(self._config).read_auxv(task)
+        saved_auxv = linux_dump_auxv.linux_dump_auxv(self._config).read_auxv(task)[:38]
         mmData["entries"][0]["mm_saved_auxv"] = saved_auxv
 
         #Files used by process: TYPE = EXTRACTED
