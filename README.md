@@ -1,5 +1,5 @@
 # User Manual
-The output of this thesis is a pool of file which can be used for resurrecting processes. In this section it will be explained how these files have to be used for reaching the purpose. Specifically there are two different categories of files, the first contains the scripts and volatility plugins for the resurrection, the second includes tools for development and continue the research.
+The output of this thesis is a pool of file which can be used for resurrecting processes starting from a memory dump. In this section it will be explained how these files have to be used for reaching the purpose. Specifically there are two different categories of files, the first contains the scripts and volatility plugins for the resurrection, the second includes tools for development and continue the research.
 
 ## Environment setup
 
