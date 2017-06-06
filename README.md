@@ -189,4 +189,4 @@ Other scripts were written for working faster with **CRIU** file images.
 
 * **convertImgJson.sh**: it has not parameters and it is able to covert all images from binary to **json** format using **crit**.
 * **diffCriu.sh**: it takes as parameter two different paths containing two **CRIU** checkpoint converted in **json** format. It prints all differences of the two checkpoint.
-* **findPatternCrit.sh: searches for a pattern in all **json** image files in the current directory.
+* **findPatternCrit.sh**: searches for a pattern in all **json** image files in the current directory.
